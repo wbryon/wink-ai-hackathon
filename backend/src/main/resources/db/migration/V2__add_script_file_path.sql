@@ -1,0 +1,2 @@
+ALTER TABLE scripts ADD COLUMN IF NOT EXISTS file_path TEXT;
+

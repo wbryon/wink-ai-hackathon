@@ -1,0 +1,40 @@
+#version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: wink
+      POSTGRES_PASSWORD: wink
+      POSTGRES_DB: winkdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/winkdb
+      SPRING_DATASOURCE_USERNAME: wink
+      SPRING_DATASOURCE_PASSWORD: wink
+      AI_SERVICE_URL: http://ai:8000
+      APP_STORAGE_UPLOAD_DIR: /data/uploads
+    depends_on:
+      - db
+      - ai
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data/uploads:/data/uploads
+
+  ai:
+    build: ./ai-modules
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+
+volumes:
+  db_data:
