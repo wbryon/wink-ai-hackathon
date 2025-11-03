@@ -1,0 +1,150 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Подключение шрифтов CoFo */
+@font-face {
+  font-family: 'CoFoSans';
+  src: url('/fonts/CoFoSans-Regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'CoFoSans';
+  src: url('/fonts/CoFoSans-Bold.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'CoFoSans';
+  src: url('/fonts/CoFoSans-Light.woff') format('woff');
+  font-weight: 300;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'CoFoKak-Black';
+  src: url('/fonts/CoFoKak-Black.woff') format('woff');
+  font-weight: 900;
+  font-style: normal;
+}
+
+/* Базовые стили */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'CoFoSans', Arial, sans-serif;
+  background-color: #000000;
+  color: #ffffff;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'CoFoKak-Black', Arial, sans-serif;
+  font-weight: 900;
+}
+
+/* Пользовательские утилиты */
+@layer utilities {
+  .text-gradient-wink {
+    background-image: linear-gradient(27.5deg, #FF9532 0%, #FF8A1C 31%, #FF5B21 46%, #FF5A24 67%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .bg-gradient-wink {
+    background-image: linear-gradient(27.5deg, #FF9532 0%, #FF8A1C 31%, #FF5B21 46%, #FF5A24 67%);
+  }
+  
+  .btn-wink {
+    @apply bg-gradient-wink text-wink-black font-bold py-3 px-6 rounded-lg uppercase text-sm tracking-wider transition-all duration-200;
+  }
+  
+  .btn-wink:hover {
+    @apply shadow-lg transform scale-105;
+  }
+  
+  .card-wink {
+    @apply bg-wink-dark border border-wink-gray rounded-lg p-6 transition-all duration-200;
+  }
+  
+  .card-wink:hover {
+    @apply border-wink-orange shadow-xl;
+  }
+  
+  .input-wink {
+    @apply bg-wink-dark border border-wink-gray text-white px-4 py-2 rounded-lg focus:outline-none focus:border-wink-orange transition-colors;
+  }
+}
+
+/* Кастомный скроллбар */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #171717;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #464645;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #ff5b21;
+}
+
+/* Анимации */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeInUp {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+@keyframes pulse-orange {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 91, 33, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(255, 91, 33, 0);
+  }
+}
+
+.animate-pulse-orange {
+  animation: pulse-orange 2s infinite;
+}
+
+/* Loader */
+.loader {
+  border: 3px solid #171717;
+  border-top: 3px solid #ff5b21;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
