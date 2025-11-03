@@ -1,16 +1,20 @@
 package ru.wink.winkaipreviz.service;
 
+import org.apache.tika.Tika;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.wink.winkaipreviz.dto.*;
 import ru.wink.winkaipreviz.entity.Frame;
 import ru.wink.winkaipreviz.entity.Scene;
 import ru.wink.winkaipreviz.entity.Script;
+import ru.wink.winkaipreviz.parser.RuleParser;
 import ru.wink.winkaipreviz.repository.FrameRepository;
 import ru.wink.winkaipreviz.repository.SceneRepository;
 import ru.wink.winkaipreviz.repository.ScriptRepository;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,39 +27,79 @@ public class PrevizService {
 	private final ScriptRepository scriptRepository;
 	private final SceneRepository sceneRepository;
 	private final FrameRepository frameRepository;
+    private final RuleParser ruleParser;
+    private final Tika tika;
+    private final AiParserClient aiParserClient;
+
+    @Value("${app.parser.threshold:3}")
+    private int parserThreshold;
+
 
     private final FileStorageService fileStorageService;
 
-    public PrevizService(ScriptRepository scriptRepository, SceneRepository sceneRepository, FrameRepository frameRepository, FileStorageService fileStorageService) {
+    public PrevizService(ScriptRepository scriptRepository, SceneRepository sceneRepository, FrameRepository frameRepository,
+                         FileStorageService fileStorageService, RuleParser ruleParser, AiParserClient aiParserClient) {
 		this.scriptRepository = scriptRepository;
 		this.sceneRepository = sceneRepository;
 		this.frameRepository = frameRepository;
         this.fileStorageService = fileStorageService;
+        this.ruleParser = ruleParser;
+        this.tika = new Tika();
+        this.aiParserClient = aiParserClient;
 	}
-
-	@Transactional
+    @Transactional
     public ScriptUploadResponse createScriptFromUpload(MultipartFile file) throws Exception {
+        // Сохраняем файл
         String storedPath = fileStorageService.store(file);
 
+        // Создаём сущность Script
         Script script = new Script();
         script.setFilename(file.getOriginalFilename());
         script.setStatus("UPLOADED");
         script.setFilePath(storedPath);
         script = scriptRepository.save(script);
 
-        // Заглушка парсинга: создаём несколько сцен для продолжения потока
-        List<Scene> stubScenes = createStubScenes(script);
-        sceneRepository.saveAll(stubScenes);
+        // Извлекаем текст (через Apache Tika)
+        String text = tika.parseToString(file.getInputStream());
 
+        // Парсим сцены из текста
+        List<Scene> scenes = ruleParser.parse(text);
+
+        // Fallback к AI, если недостаточно сцен
+        if (scenes == null) scenes = new ArrayList<>();
+        if (scenes.size() < parserThreshold) {
+            List<Scene> aiScenes = aiParserClient.parse(text);
+            if (aiScenes != null && aiScenes.size() >= parserThreshold) {
+                scenes = aiScenes;
+                script.setStatus("PARSED_AI");
+            }
+        }
+
+        // Если ничего не удалось — заглушки
+        if (scenes.isEmpty()) {
+            scenes = createStubScenes(script);
+            script.setStatus("PARSED_WITH_STUB");
+        } else if (!"PARSED_AI".equals(script.getStatus())) {
+            script.setStatus("PARSED");
+        }
+
+        // Привязываем сцены к сценарию и сохраняем
+        for (Scene scene : scenes) {
+            scene.setScript(script);
+        }
+        sceneRepository.saveAll(scenes);
+
+        // Собираем DTO-ответ
         ScriptUploadResponse resp = new ScriptUploadResponse();
         resp.setScriptId(script.getId().toString());
         resp.setFilename(script.getFilename());
         resp.setStatus(script.getStatus());
+
         List<SceneDto> sceneDtos = new ArrayList<>();
-        for (Scene s : stubScenes) sceneDtos.add(mapSceneWithFrames(s));
+        for (Scene s : scenes) sceneDtos.add(mapSceneWithFrames(s));
         resp.setScenes(sceneDtos);
         return resp;
-	}
+    }
 
     private List<Scene> createStubScenes(Script script) {
         List<Scene> list = new ArrayList<>();
