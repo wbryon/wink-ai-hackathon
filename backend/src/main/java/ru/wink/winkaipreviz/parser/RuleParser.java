@@ -4,7 +4,9 @@ import org.springframework.stereotype.Component;
 import ru.wink.winkaipreviz.entity.Scene;
 
 import java.util.*;
-import java.util.regex.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 /**
  * Простой MVP-парсер сценариев.
@@ -14,14 +16,39 @@ import java.util.regex.*;
 @Component
 public class RuleParser {
 
-    // Основной шаблон для начала сцены
-    private static final Pattern SCENE_HEADER_PATTERN = Pattern.compile(
+    // Простой рабочий шаблон (fallback)
+    private static final Pattern SIMPLE_SCENE_HEADER_PATTERN = Pattern.compile(
             "(?m)^(\\d+\\s*[.–—-]?\\s*)?(ИНТ\\.|НАТ\\.|INT\\.|EXT\\.)\\s+([^\\n]+)",
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
     );
 
+    // Основной шаблон для начала сцены (компилируем безопасно в конструкторе)
+    private final Pattern sceneHeaderPattern;
+
+    public RuleParser() {
+        Pattern compiled;
+        try {
+            compiled = Pattern.compile(
+                    "(?m)^(?:" +
+                            // optional complex scene index like "1.1", "1-3-N1." etc
+                            "(?:[\\p{L}\\p{N}\\.\\-]+\\.?\\s+)?" +
+                            // INT/EXT in RU/EN with optional dot
+                            "((?:ИНТЕРЬЕР|ИНТ|НАТУРАЛЬН(?:АЯ|О)|НАТ|INT|EXT)\\.?)\\s+([^\\n]+)" +
+                        "|" +
+                            // SCENE / СЦЕНА header
+                            "(?:(SCENE|СЦЕНА)\\s+\\d+[:\\-\\.]?\\s*([^\\n]+))" +
+                    ")",
+                    Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
+            );
+        } catch (PatternSyntaxException ex) {
+            compiled = SIMPLE_SCENE_HEADER_PATTERN; // безопасный откат
+        }
+        this.sceneHeaderPattern = compiled;
+    }
+
     // Заглавные слова (часто имена персонажей)
     private static final Pattern CHARACTER_PATTERN = Pattern.compile("(?m)^[A-ZА-ЯЁ][A-ZА-ЯЁ\\s\\-]{2,}$");
+           private static final Pattern LOWERCASE_LETTERS = Pattern.compile("[a-zа-яё]");
 
     /**
      * Главный метод: парсит сценарий и возвращает список сцен.
@@ -30,7 +57,7 @@ public class RuleParser {
         if (text == null || text.isBlank()) return Collections.emptyList();
 
         List<Scene> scenes = new ArrayList<>();
-        Matcher matcher = SCENE_HEADER_PATTERN.matcher(text);
+        Matcher matcher = sceneHeaderPattern.matcher(text);
 
         List<Integer> sceneStartIndices = new ArrayList<>();
         while (matcher.find()) {
@@ -56,12 +83,12 @@ public class RuleParser {
      * Парсинг отдельного блока текста (одной сцены)
      */
     private Scene parseSceneBlock(String block, int index) {
-        Matcher headerMatcher = SCENE_HEADER_PATTERN.matcher(block);
+        Matcher headerMatcher = sceneHeaderPattern.matcher(block);
         if (!headerMatcher.find()) return null;
 
         String header = headerMatcher.group(0).trim();
         String title = header;
-        String location = extractLocation(header);
+        String location = extractLocation(headerMatcher);
         String body = block.substring(headerMatcher.end()).trim();
 
         List<String> characters = extractCharacters(body);
@@ -81,12 +108,24 @@ public class RuleParser {
     /**
      * Извлекает локацию из заголовка (всё после INT./EXT.)
      */
-    private String extractLocation(String header) {
-        String[] parts = header.split("\\s+", 3);
-        if (parts.length >= 3) {
-            return parts[2].replaceAll("\\s*(ДЕНЬ|НОЧЬ|ДЕНЬ\\.|НОЧЬ\\.|DAY|NIGHT)\\s*", "").trim();
+    private String extractLocation(Matcher headerMatcher) {
+        // If matched by INT/EXT variant, header groups: 1) kind 2) rest
+        String kind = safeGroup(headerMatcher, 1);
+        String rest = safeGroup(headerMatcher, 2);
+        // If matched by SCENE/СЦЕНА, header groups: 3) word 4) rest
+        if (kind == null || kind.isBlank()) {
+            rest = rest == null ? safeGroup(headerMatcher, 4) : rest;
         }
-        return header;
+        String loc = rest == null ? headerMatcher.group(0) : rest;
+        return loc.replaceAll("\\s*(ДЕНЬ|НОЧЬ|ДЕНЬ\\.|НОЧЬ\\.|DAY|NIGHT)\\s*", "").trim();
+    }
+
+    private static String safeGroup(Matcher m, int idx) {
+        try {
+            return m.group(idx);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**
@@ -108,15 +147,25 @@ public class RuleParser {
     /**
      * Описание сцены: всё до первой реплики
      */
-    private String extractDescription(String text) {
-        String[] lines = text.split("\n");
-        StringBuilder desc = new StringBuilder();
-        for (String line : lines) {
-            if (CHARACTER_PATTERN.matcher(line.trim()).matches()) break;
-            desc.append(line.trim()).append(" ");
-        }
-        return desc.toString().replaceAll("\\s{2,}", " ").trim();
-    }
+          private String extractDescription(String text) {
+              // Preserve line breaks, but collapse multiple consecutive newlines to a single one
+              if (text == null) return "";
+              String withUnixNewlines = text.replace("\r\n", "\n").replace("\r", "\n");
+              // Replace 2+ consecutive newlines with a single newline
+              String collapsed = withUnixNewlines.replaceAll("\n{2,}", "\n");
+              return collapsed.trim();
+          }
+
+           private boolean isUpperLikeLine(String line) {
+               if (line.isEmpty()) return false;
+               // If contains any lowercase latin/cyrillic letter, it's not an uppercase name/list line
+               if (LOWERCASE_LETTERS.matcher(line).find()) return false;
+               // Also accept classic pure-character line pattern
+               if (CHARACTER_PATTERN.matcher(line).matches()) return true;
+               // Allow commas, digits, parentheses in all-caps lists
+               return line.matches("^[A-ZА-ЯЁ0-9\\s,.'()\"-]{2,}$")
+                       && line.replaceAll("[^A-ZА-ЯЁ]", "").length() >= 2;
+           }
 
     // Для теста
     public static void main(String[] args) {

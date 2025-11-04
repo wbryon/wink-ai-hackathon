@@ -30,17 +30,18 @@ public class PrevizService {
     private final RuleParser ruleParser;
     private final Tika tika;
     private final AiParserClient aiParserClient;
-    private final AiGenerationClient aiGenerationClient;
 
     @Value("${app.parser.threshold:3}")
     private int parserThreshold;
+
+    @Value("${app.parser.use-stub:false}")
+    private boolean useStub;
 
 
     private final FileStorageService fileStorageService;
 
     public PrevizService(ScriptRepository scriptRepository, SceneRepository sceneRepository, FrameRepository frameRepository,
-                         FileStorageService fileStorageService, RuleParser ruleParser, AiParserClient aiParserClient,
-                         AiGenerationClient aiGenerationClient) {
+                         FileStorageService fileStorageService, RuleParser ruleParser, AiParserClient aiParserClient) {
 		this.scriptRepository = scriptRepository;
 		this.sceneRepository = sceneRepository;
 		this.frameRepository = frameRepository;
@@ -48,7 +49,6 @@ public class PrevizService {
         this.ruleParser = ruleParser;
         this.tika = new Tika();
         this.aiParserClient = aiParserClient;
-        this.aiGenerationClient = aiGenerationClient;
 	}
     @Transactional
     public ScriptUploadResponse createScriptFromUpload(MultipartFile file) throws Exception {
@@ -78,10 +78,14 @@ public class PrevizService {
             }
         }
 
-        // Если ничего не удалось — заглушки
+        // Если ничего не удалось — опциональные заглушки (можно отключить через конфиг)
         if (scenes.isEmpty()) {
-            scenes = createStubScenes(script);
-            script.setStatus("PARSED_WITH_STUB");
+            if (useStub) {
+                scenes = createStubScenes(script);
+                script.setStatus("PARSED_WITH_STUB");
+            } else {
+                script.setStatus("PARSED_EMPTY");
+            }
         } else if (!"PARSED_AI".equals(script.getStatus())) {
             script.setStatus("PARSED");
         }
