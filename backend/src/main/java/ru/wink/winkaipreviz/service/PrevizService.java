@@ -193,12 +193,14 @@ public class PrevizService {
 	public FrameDto generateFrame(String sceneIdStr, GenerateFrameRequest req) {
 		UUID sceneId = UUID.fromString(sceneIdStr);
 		Scene scene = sceneRepository.findById(sceneId).orElseThrow(() -> new IllegalArgumentException("Scene not found: " + sceneIdStr));
+		String lod = req.getDetailLevel() == null ? "medium" : req.getDetailLevel();
+		AiGenerationClient.GenerateResponse ai = aiGenerationClient.generate(scene.getId(), null, lod);
 		Frame frame = new Frame();
 		frame.setScene(scene);
-		frame.setDetailLevel(req.getDetailLevel());
+		frame.setDetailLevel(lod);
 		frame.setPrompt(null);
-		frame.setSeed(12345);
-		frame.setImageUrl("http://localhost:8000/mock_" + (req.getDetailLevel() == null ? "medium" : req.getDetailLevel()) + ".png");
+		frame.setSeed(ai != null && ai.seed != null ? ai.seed : 12345);
+		frame.setImageUrl(ai != null && ai.imageUrl != null ? ai.imageUrl : ("http://localhost:8000/mock_" + lod + ".png"));
 		frame.setCreatedAt(Instant.now());
 		frame = frameRepository.save(frame);
 		return mapFrame(frame);
@@ -208,12 +210,14 @@ public class PrevizService {
 	public FrameDto regenerateFrame(String frameIdStr, RegenerateFrameRequest req) {
 		UUID frameId = UUID.fromString(frameIdStr);
 		Frame base = frameRepository.findById(frameId).orElseThrow(() -> new IllegalArgumentException("Frame not found: " + frameIdStr));
+		String lod = req.getDetailLevel() == null ? "medium" : req.getDetailLevel();
+		AiGenerationClient.GenerateResponse ai = aiGenerationClient.generate(base.getScene().getId(), req.getPrompt(), lod);
 		Frame newFrame = new Frame();
 		newFrame.setScene(base.getScene());
-		newFrame.setDetailLevel(req.getDetailLevel());
+		newFrame.setDetailLevel(lod);
 		newFrame.setPrompt(req.getPrompt());
-		newFrame.setSeed(12345);
-		newFrame.setImageUrl("http://localhost:8000/mock_" + (req.getDetailLevel() == null ? "medium" : req.getDetailLevel()) + ".png");
+		newFrame.setSeed(ai != null && ai.seed != null ? ai.seed : 12345);
+		newFrame.setImageUrl(ai != null && ai.imageUrl != null ? ai.imageUrl : ("http://localhost:8000/mock_" + lod + ".png"));
 		newFrame.setCreatedAt(Instant.now());
 		newFrame = frameRepository.save(newFrame);
 		return mapFrame(newFrame);
