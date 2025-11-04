@@ -22,6 +22,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: wink
       AI_SERVICE_URL: http://ai:8000
       APP_STORAGE_UPLOAD_DIR: /data/uploads
+      AI_PARSER_URL: http://ai:8000/parse
     depends_on:
       - db
       - ai
