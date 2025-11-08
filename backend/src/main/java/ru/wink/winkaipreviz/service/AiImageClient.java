@@ -29,7 +29,7 @@ public class AiImageClient implements ImageGenPort {
         );
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        ResponseEntity<Map> resp = rest.postForEntity(generateUrl, new HttpEntity<>(body, headers), Map.class);
+        ResponseEntity<Map<String, Object>> resp = rest.postForEntity(generateUrl, new HttpEntity<>(body, headers), (Class<Map<String, Object>>)(Class<?>)Map.class);
         Map<String, Object> v = resp.getBody();
         if (v == null) {
             return new ImageResult(null, "unknown", null, Instant.now());

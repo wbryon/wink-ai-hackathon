@@ -7,7 +7,7 @@ ALTER TABLE scenes
 
 -- Scripts: add text_extracted and parsed_json
 ALTER TABLE scripts
-    ADD COLUMN IF NOT EXISTS text_extractED TEXT,
+    ADD COLUMN IF NOT EXISTS text_extracted TEXT,
     ADD COLUMN IF NOT EXISTS parsed_json TEXT;
 
 -- Frames: add model, generation time (ms) and is_best flag
