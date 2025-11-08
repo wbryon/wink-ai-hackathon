@@ -1,7 +1,6 @@
 package ru.wink.winkaipreviz.entity;
 
 import jakarta.persistence.*;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -38,7 +37,8 @@ public class Frame {
 
     private Boolean isBest = false;
 
-    private Duration generationTime;
+    @Column(name = "generation_ms")
+    private Long generationMs;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
@@ -59,7 +59,7 @@ public class Frame {
     public void setModel(String model) { this.model = model; }
     public Boolean getIsBest() { return isBest; }
     public void setIsBest(Boolean isBest) { this.isBest = isBest; }
-    public Duration getGenerationTime() { return generationTime; }
-    public void setGenerationTime(Duration generationTime) { this.generationTime = generationTime; }
+    public Long getGenerationMs() { return generationMs; }
+    public void setGenerationMs(Long generationMs) { this.generationMs = generationMs; }
     public Instant getCreatedAt() { return createdAt; }
 }
