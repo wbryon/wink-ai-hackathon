@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: wink-ai-previz
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+  jpa:
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    show-sql: false
+  flyway:
+    enabled: true
+
+springdoc:
+  override-with-generic-response: false
+
+app:
+  storage:
+    upload-dir: ${APP_STORAGE_UPLOAD_DIR:/data/uploads}
+  parser:
+    threshold: 3
+    use-stub: false
+
+ai:
+  parser:
+    url: ${AI_PARSER_URL:http://ai:8000/parse}
+  generate:
+    url: ${AI_GENERATE_URL:http://ai:8000/generate}
+
+ollama:
+  urls: ${OLLAMA_URLS:http://localhost:11434/api/generate,http://localhost:11435/api/generate,http://localhost:11436/api/generate}
+  model: ${OLLAMA_MODEL:mistral}
+
+
