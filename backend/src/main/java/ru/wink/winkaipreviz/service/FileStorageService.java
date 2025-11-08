@@ -4,6 +4,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import ru.wink.winkaipreviz.config.StorageProperties;
+import org.apache.tika.Tika;
+import org.apache.tika.exception.TikaException;
+import java.io.File;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -48,6 +51,12 @@ public class FileStorageService {
 
 		Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
 		return target.toString();
+	}
+
+	public String extractText(String filePath) throws IOException, TikaException {
+		if (filePath == null) throw new IllegalArgumentException("filePath is null");
+		Tika tika = new Tika();
+		return tika.parseToString(new File(filePath));
 	}
 }
 

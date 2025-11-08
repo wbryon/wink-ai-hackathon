@@ -1,24 +1,22 @@
 package ru.wink.winkaipreviz.dto;
 
 public class RegenerateFrameRequest {
-	private String prompt;
-	private String detailLevel; // sketch | medium | final
 
-	public String getPrompt() {
-		return prompt;
-	}
+    private String detailLevel = "FINAL";
+    private String prompt;
+    private Integer seed;
+    private String model;
 
-	public void setPrompt(String prompt) {
-		this.prompt = prompt;
-	}
+    // --- getters/setters ---
+    public String getDetailLevel() { return detailLevel; }
+    public void setDetailLevel(String detailLevel) { this.detailLevel = detailLevel; }
 
-	public String getDetailLevel() {
-		return detailLevel;
-	}
+    public String getPrompt() { return prompt; }
+    public void setPrompt(String prompt) { this.prompt = prompt; }
 
-	public void setDetailLevel(String detailLevel) {
-		this.detailLevel = detailLevel;
-	}
+    public Integer getSeed() { return seed; }
+    public void setSeed(Integer seed) { this.seed = seed; }
+
+    public String getModel() { return model; }
+    public void setModel(String model) { this.model = model; }
 }
-
-

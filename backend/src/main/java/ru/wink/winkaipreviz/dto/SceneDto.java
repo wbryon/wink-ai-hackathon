@@ -1,89 +1,62 @@
 package ru.wink.winkaipreviz.dto;
 
+import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * DTO для передачи информации о сцене и связанных кадрах.
+ */
 public class SceneDto {
-	private String id;
-	private String title;
-	private String location;
-	private List<String> characters;
-	private List<String> props;
-	private String description;
-	private String prompt;
-	private FrameDto currentFrame;
-	private List<FrameDto> generatedFrames;
 
-	public String getId() {
-		return id;
-	}
+    private String id;
+    private String title;
+    private String location;
+    private String description;
+    private String semanticSummary;
+    private String tone;
+    private String style;
+    private String status;
 
-	public void setId(String id) {
-		this.id = id;
-	}
+    private List<String> characters = new ArrayList<>();
+    private List<String> props = new ArrayList<>();
 
-	public String getTitle() {
-		return title;
-	}
+    private List<FrameDto> generatedFrames = new ArrayList<>();
+    private FrameDto currentFrame;
 
-	public void setTitle(String title) {
-		this.title = title;
-	}
+    // --- getters/setters ---
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
 
-	public String getLocation() {
-		return location;
-	}
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
 
-	public void setLocation(String location) {
-		this.location = location;
-	}
+    public String getLocation() { return location; }
+    public void setLocation(String location) { this.location = location; }
 
-	public List<String> getCharacters() {
-		return characters;
-	}
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
 
-	public void setCharacters(List<String> characters) {
-		this.characters = characters;
-	}
+    public String getSemanticSummary() { return semanticSummary; }
+    public void setSemanticSummary(String semanticSummary) { this.semanticSummary = semanticSummary; }
 
-	public List<String> getProps() {
-		return props;
-	}
+    public String getTone() { return tone; }
+    public void setTone(String tone) { this.tone = tone; }
 
-	public void setProps(List<String> props) {
-		this.props = props;
-	}
+    public String getStyle() { return style; }
+    public void setStyle(String style) { this.style = style; }
 
-	public String getDescription() {
-		return description;
-	}
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 
-	public void setDescription(String description) {
-		this.description = description;
-	}
+    public List<String> getCharacters() { return characters; }
+    public void setCharacters(List<String> characters) { this.characters = characters; }
 
-	public String getPrompt() {
-		return prompt;
-	}
+    public List<String> getProps() { return props; }
+    public void setProps(List<String> props) { this.props = props; }
 
-	public void setPrompt(String prompt) {
-		this.prompt = prompt;
-	}
+    public List<FrameDto> getGeneratedFrames() { return generatedFrames; }
+    public void setGeneratedFrames(List<FrameDto> generatedFrames) { this.generatedFrames = generatedFrames; }
 
-	public FrameDto getCurrentFrame() {
-		return currentFrame;
-	}
-
-	public void setCurrentFrame(FrameDto currentFrame) {
-		this.currentFrame = currentFrame;
-	}
-
-	public List<FrameDto> getGeneratedFrames() {
-		return generatedFrames;
-	}
-
-	public void setGeneratedFrames(List<FrameDto> generatedFrames) {
-		this.generatedFrames = generatedFrames;
-	}
+    public FrameDto getCurrentFrame() { return currentFrame; }
+    public void setCurrentFrame(FrameDto currentFrame) { this.currentFrame = currentFrame; }
 }
-
-
