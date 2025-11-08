@@ -1,5 +1,7 @@
 package ru.wink.winkaipreviz.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -19,10 +21,12 @@ import java.util.Map;
 public class AiParserClient implements ParserPort {
 
 	private final RestTemplate restTemplate = new RestTemplate();
+	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	@Value("${ai.parser.url:http://ai:8000/parse}")
 	private String aiParserUrl;
 
+	private final List<String> rawJsonHistory = new ArrayList<>();
 	private String lastRawJson = null;
 
 	@SuppressWarnings("unchecked")
@@ -34,7 +38,16 @@ public class AiParserClient implements ParserPort {
 			HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
 			Map<String, Object> response = restTemplate.postForObject(aiParserUrl, entity, Map.class);
 			if (response == null) return List.of();
-			this.lastRawJson = response.toString();
+
+			try {
+				String json = objectMapper.writeValueAsString(response);
+				this.lastRawJson = json;
+				this.rawJsonHistory.add(json);
+			} catch (JsonProcessingException ignored) {
+				this.lastRawJson = String.valueOf(response);
+				this.rawJsonHistory.add(String.valueOf(response));
+			}
+
 			Object scenesObj = response.get("scenes");
 			if (!(scenesObj instanceof List<?> list)) return List.of();
 			List<Scene> scenes = new ArrayList<>();
@@ -60,6 +73,14 @@ public class AiParserClient implements ParserPort {
 
 	public String getLastRawJson() {
 		return lastRawJson;
+	}
+
+	public List<String> getRawJsonHistory() {
+		return new ArrayList<>(rawJsonHistory);
+	}
+
+	public void clearRawJsonHistory() {
+		rawJsonHistory.clear();
 	}
 
 	private static String asString(Object v) {

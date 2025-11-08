@@ -75,7 +75,13 @@ public class SceneGenerationService {
                     scene.setStatus(SceneStatus.PARSED);
                 }
                 sceneRepository.saveAll(parsedScenes);
-                script.setParsedJson(parserClient.getLastRawJson());
+                // агрегируем все сырые JSON-ответы по чанкам в единый массив
+                var rawList = parserClient.getRawJsonHistory();
+                if (rawList != null && !rawList.isEmpty()) {
+                    String aggregated = "[" + String.join(",", rawList) + "]";
+                    script.setParsedJson(aggregated);
+                    parserClient.clearRawJsonHistory();
+                }
                 script.setStatus(ScriptStatus.PARSED);
                 scriptRepository.save(script);
 
