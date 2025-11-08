@@ -1,13 +1,13 @@
 package ru.wink.winkaipreviz.controller;
 
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 import ru.wink.winkaipreviz.dto.FrameDto;
 import ru.wink.winkaipreviz.dto.GenerateFrameRequest;
 import ru.wink.winkaipreviz.dto.SceneDto;
 import ru.wink.winkaipreviz.dto.UpdateSceneRequest;
 import ru.wink.winkaipreviz.service.PrevizService;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -43,7 +43,7 @@ public class SceneController {
     }
 
     @PostMapping("/scenes/{sceneId}/generate")
-    public FrameDto generate(@PathVariable String sceneId, @RequestBody GenerateFrameRequest req) {
+    public FrameDto generate(@PathVariable String sceneId, @Valid @RequestBody GenerateFrameRequest req) {
         return service.generateFrame(sceneId, req);
     }
 }
