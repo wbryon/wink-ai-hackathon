@@ -6,131 +6,92 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Scene — отдельная сцена сценария.
+ * Хранит локацию, персонажей, описание, стиль и тон.
+ */
 @Entity
 @Table(name = "scenes")
 public class Scene {
 
-	@Id
-	@GeneratedValue(strategy = GenerationType.AUTO)
-	@Column(name = "id", nullable = false, updatable = false)
-	private UUID id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private UUID id;
 
-	@ManyToOne(fetch = FetchType.LAZY, optional = false)
-	@JoinColumn(name = "script_id", nullable = false)
-	private Script script;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "script_id", nullable = false)
+    private Script script;
 
-	@Column(name = "title")
-	private String title;
+    /** Заголовок сцены, например "ИНТ. КАФЕ У ОКНА — ВЕЧЕР" */
+    @Column(length = 512)
+    private String title;
 
-	@Column(name = "location")
-	private String location;
+    @Column(length = 256)
+    private String location;
 
-	@ElementCollection
-	@CollectionTable(name = "scene_characters", joinColumns = @JoinColumn(name = "scene_id"))
-	@Column(name = "character")
-	private List<String> characters = new ArrayList<>();
+    /** Персонажи в сцене */
+    @ElementCollection
+    @CollectionTable(name = "scene_characters", joinColumns = @JoinColumn(name = "scene_id"))
+    @Column(name = "character")
+    private List<String> characters = new ArrayList<>();
 
-	@ElementCollection
-	@CollectionTable(name = "scene_props", joinColumns = @JoinColumn(name = "scene_id"))
-	@Column(name = "prop")
-	private List<String> props = new ArrayList<>();
+    /** Реквизит */
+    @ElementCollection
+    @CollectionTable(name = "scene_props", joinColumns = @JoinColumn(name = "scene_id"))
+    @Column(name = "prop")
+    private List<String> props = new ArrayList<>();
 
-	@Column(name = "description", length = 4000)
-	private String description;
+    /** Описание действий в сцене */
+    @Lob
+    @Column(columnDefinition = "text")
+    private String description;
 
-	@Column(name = "prompt", length = 4000)
-	private String prompt;
+    /** Семантический пересказ — что происходит (заполняется LLM) */
+    @Lob
+    @Column(columnDefinition = "text")
+    private String semanticSummary;
 
-	@Column(name = "created_at", nullable = false, updatable = false)
-	private Instant createdAt;
+    /** Эмоциональный тон сцены */
+    @Column(length = 128)
+    private String tone;
 
-	@OneToMany(mappedBy = "scene", cascade = CascadeType.ALL, orphanRemoval = true)
-	private List<Frame> frames = new ArrayList<>();
+    /** Визуальный стиль (например "нуар", "драматичный", "теплый") */
+    @Column(length = 128)
+    private String style;
 
-	@PrePersist
-	public void prePersist() {
-		this.createdAt = Instant.now();
-	}
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    private SceneStatus status = SceneStatus.PARSED;
 
-	public UUID getId() {
-		return id;
-	}
+    @Column(nullable = false, updatable = false)
+    private Instant createdAt = Instant.now();
 
-	public void setId(UUID id) {
-		this.id = id;
-	}
+    @OneToMany(mappedBy = "scene", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("createdAt DESC")
+    private List<Frame> frames = new ArrayList<>();
 
-	public Script getScript() {
-		return script;
-	}
-
-	public void setScript(Script script) {
-		this.script = script;
-	}
-
-	public String getTitle() {
-		return title;
-	}
-
-	public void setTitle(String title) {
-		this.title = title;
-	}
-
-	public String getLocation() {
-		return location;
-	}
-
-	public void setLocation(String location) {
-		this.location = location;
-	}
-
-	public List<String> getCharacters() {
-		return characters;
-	}
-
-	public void setCharacters(List<String> characters) {
-		this.characters = characters;
-	}
-
-	public List<String> getProps() {
-		return props;
-	}
-
-	public void setProps(List<String> props) {
-		this.props = props;
-	}
-
-	public String getDescription() {
-		return description;
-	}
-
-	public void setDescription(String description) {
-		this.description = description;
-	}
-
-	public String getPrompt() {
-		return prompt;
-	}
-
-	public void setPrompt(String prompt) {
-		this.prompt = prompt;
-	}
-
-	public Instant getCreatedAt() {
-		return createdAt;
-	}
-
-	public void setCreatedAt(Instant createdAt) {
-		this.createdAt = createdAt;
-	}
-
-	public List<Frame> getFrames() {
-		return frames;
-	}
-
-	public void setFrames(List<Frame> frames) {
-		this.frames = frames;
-	}
+    // --- getters/setters ---
+    public UUID getId() { return id; }
+    public Script getScript() { return script; }
+    public void setScript(Script script) { this.script = script; }
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
+    public String getLocation() { return location; }
+    public void setLocation(String location) { this.location = location; }
+    public List<String> getCharacters() { return characters; }
+    public void setCharacters(List<String> characters) { this.characters = characters; }
+    public List<String> getProps() { return props; }
+    public void setProps(List<String> props) { this.props = props; }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+    public String getSemanticSummary() { return semanticSummary; }
+    public void setSemanticSummary(String semanticSummary) { this.semanticSummary = semanticSummary; }
+    public String getTone() { return tone; }
+    public void setTone(String tone) { this.tone = tone; }
+    public String getStyle() { return style; }
+    public void setStyle(String style) { this.style = style; }
+    public SceneStatus getStatus() { return status; }
+    public void setStatus(SceneStatus status) { this.status = status; }
+    public Instant getCreatedAt() { return createdAt; }
+    public List<Frame> getFrames() { return frames; }
 }
-
-
