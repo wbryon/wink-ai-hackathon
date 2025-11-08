@@ -24,6 +24,7 @@ public class SceneGenerationService {
     private final SceneRepository sceneRepository;
     private final FrameRepository frameRepository;
     private final FileStorageService fileStorageService;
+    private final TextChunkerService textChunkerService;
     private final AiParserClient parserClient;
     private final AiImageClient imageClient;
     private final PromptCompilerService promptCompiler;
@@ -32,6 +33,7 @@ public class SceneGenerationService {
                                   SceneRepository sceneRepository,
                                   FrameRepository frameRepository,
                                   FileStorageService fileStorageService,
+                                  TextChunkerService textChunkerService,
                                   AiParserClient parserClient,
                                   AiImageClient imageClient,
                                   PromptCompilerService promptCompiler) {
@@ -39,6 +41,7 @@ public class SceneGenerationService {
         this.sceneRepository = sceneRepository;
         this.frameRepository = frameRepository;
         this.fileStorageService = fileStorageService;
+        this.textChunkerService = textChunkerService;
         this.parserClient = parserClient;
         this.imageClient = imageClient;
         this.promptCompiler = promptCompiler;
@@ -60,8 +63,13 @@ public class SceneGenerationService {
                 String text = fileStorageService.extractText(script.getFilePath());
                 script.setTextExtracted(text);
 
-                // 2️⃣ Парсинг сцен AI
-                List<Scene> parsedScenes = parserClient.parseScenes(text);
+                // 2️⃣ Чанкирование и парсинг сцен AI по чанкам
+                List<String> chunks = textChunkerService.chunk(text);
+                List<Scene> parsedScenes = new java.util.ArrayList<>();
+                for (String chunk : chunks) {
+                    List<Scene> part = parserClient.parseScenes(chunk);
+                    if (part != null && !part.isEmpty()) parsedScenes.addAll(part);
+                }
                 for (Scene scene : parsedScenes) {
                     scene.setScript(script);
                     scene.setStatus(SceneStatus.PARSED);

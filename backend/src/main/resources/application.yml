@@ -26,6 +26,8 @@ app:
   parser:
     threshold: 3
     use-stub: false
+    max-chars-per-chunk: 4000
+    max-chunks: 100
 
 ai:
   parser:
