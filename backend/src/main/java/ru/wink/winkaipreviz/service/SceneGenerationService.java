@@ -6,7 +6,6 @@ import ru.wink.winkaipreviz.ai.ImageResult;
 import ru.wink.winkaipreviz.entity.*;
 import ru.wink.winkaipreviz.repository.*;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -27,7 +26,7 @@ public class SceneGenerationService {
     private final TextChunkerService textChunkerService;
     private final AiParserClient parserClient;
     private final AiImageClient imageClient;
-    private final PromptCompilerService promptCompiler;
+	private final PromptCompilerClient promptCompiler;
 
     public SceneGenerationService(ScriptRepository scriptRepository,
                                   SceneRepository sceneRepository,
@@ -36,7 +35,7 @@ public class SceneGenerationService {
                                   TextChunkerService textChunkerService,
                                   AiParserClient parserClient,
                                   AiImageClient imageClient,
-                                  PromptCompilerService promptCompiler) {
+								  PromptCompilerClient promptCompiler) {
         this.scriptRepository = scriptRepository;
         this.sceneRepository = sceneRepository;
         this.frameRepository = frameRepository;
@@ -119,7 +118,7 @@ public class SceneGenerationService {
         frame.setImageUrl(result.imageUrl());
         frame.setModel(result.model());
         frame.setSeed(result.seed());
-        frame.setGenerationTime(Duration.between(start, Instant.now()));
+        frame.setGenerationMs(java.time.Duration.between(start, Instant.now()).toMillis());
         frameRepository.save(frame);
 
         scene.setStatus(SceneStatus.READY);

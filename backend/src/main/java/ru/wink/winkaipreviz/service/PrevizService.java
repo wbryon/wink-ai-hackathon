@@ -17,7 +17,7 @@ public class PrevizService {
     private final FrameRepository frameRepository;
     private final FileStorageService fileStorageService;
     private final SceneGenerationService sceneGenerationService;
-    private final PromptCompilerService promptCompilerService;
+	private final PromptCompilerClient promptCompilerService;
     private final AiImageClient aiImageClient;
 
     public PrevizService(ScriptRepository scriptRepository,
@@ -25,7 +25,7 @@ public class PrevizService {
                          FrameRepository frameRepository,
                          FileStorageService fileStorageService,
                          SceneGenerationService sceneGenerationService,
-                         PromptCompilerService promptCompilerService,
+						 PromptCompilerClient promptCompilerService,
                          AiImageClient aiImageClient) {
         this.scriptRepository = scriptRepository;
         this.sceneRepository = sceneRepository;
