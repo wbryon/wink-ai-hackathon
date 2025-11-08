@@ -7,22 +7,26 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
+import ru.wink.winkaipreviz.ai.ParserPort;
 import ru.wink.winkaipreviz.entity.Scene;
+import ru.wink.winkaipreviz.entity.SceneStatus;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 @Component
-public class AiParserClient {
+public class AiParserClient implements ParserPort {
 
 	private final RestTemplate restTemplate = new RestTemplate();
 
 	@Value("${ai.parser.url:http://ai:8000/parse}")
 	private String aiParserUrl;
 
+	private String lastRawJson = null;
+
 	@SuppressWarnings("unchecked")
-	public List<Scene> parse(String fullText) {
+	public List<Scene> parseScenes(String fullText) {
 		try {
 			HttpHeaders headers = new HttpHeaders();
 			headers.setContentType(MediaType.APPLICATION_JSON);
@@ -30,6 +34,7 @@ public class AiParserClient {
 			HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
 			Map<String, Object> response = restTemplate.postForObject(aiParserUrl, entity, Map.class);
 			if (response == null) return List.of();
+			this.lastRawJson = response.toString();
 			Object scenesObj = response.get("scenes");
 			if (!(scenesObj instanceof List<?> list)) return List.of();
 			List<Scene> scenes = new ArrayList<>();
@@ -39,14 +44,22 @@ public class AiParserClient {
 				s.setTitle(asString(m.get("title")));
 				s.setLocation(asString(m.get("location")));
 				s.setDescription(asString(m.get("description")));
+				s.setSemanticSummary(asString(m.get("summary")));
+				s.setTone(asString(m.get("tone")));
+				s.setStyle(asString(m.get("style")));
 				s.setCharacters(asStringList(m.get("characters")));
 				s.setProps(asStringList(m.get("props")));
+				s.setStatus(SceneStatus.PARSED);
 				scenes.add(s);
 			}
 			return scenes;
 		} catch (RestClientException ex) {
 			return List.of();
 		}
+	}
+
+	public String getLastRawJson() {
+		return lastRawJson;
 	}
 
 	private static String asString(Object v) {
