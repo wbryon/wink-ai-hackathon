@@ -8,13 +8,16 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
+import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.ExchangeFilterFunctions;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
 
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import java.util.Objects;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 
 @Configuration
 public class AiWebClientConfig {
@@ -28,12 +31,17 @@ public class AiWebClientConfig {
                         .addHandlerLast(new WriteTimeoutHandler(60, TimeUnit.SECONDS)));
 
         return WebClient.builder()
-				.baseUrl(Objects.requireNonNull(baseUrl, "ai.parser.base-url must not be null"))
-                .clientConnector(new org.springframework.http.client.reactive.ReactorClientHttpConnector(httpClient))
+                .baseUrl(Objects.requireNonNull(baseUrl, "ai.parser.base-url must not be null"))
+                .clientConnector(new ReactorClientHttpConnector(Objects.requireNonNull(httpClient)))
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .filter(ExchangeFilterFunctions.statusError(
-                        HttpStatusCode::isError,
-                        r -> new RuntimeException("AI error: " + r.statusCode())))
+                .defaultHeader(HttpHeaders.USER_AGENT, "wink-previz-ai-client/1.0")
+                .filter((request, next) -> next.exchange(request)
+                        .flatMap(response -> {
+                            if (response.statusCode().isError()) {
+                                return response.createException().flatMap(Mono::error);
+                            }
+                            return Mono.just(response);
+                        }))
                 .build();
     }
 }
