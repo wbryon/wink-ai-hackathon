@@ -1,5 +1,7 @@
 package ru.wink.winkaipreviz.dto;
 
+import jakarta.validation.constraints.NotBlank;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -8,14 +10,19 @@ import java.util.List;
  */
 public class UpdateSceneRequest {
 
-    private String title;
-    private String location;
-    private String description;
+    @NotBlank private String title;
+    @NotBlank private String location;
+    @NotBlank private String description;
     private String tone;
     private String style;
     private String semanticSummary;
-    private List<String> characters = new ArrayList<>();
-    private List<String> props = new ArrayList<>();
+    private List<String> characters;
+    private List<String> props;
+
+    public UpdateSceneRequest() {
+        this.characters = new ArrayList<>();
+        this.props = new ArrayList<>();
+    }
 
     // --- getters/setters ---
     public String getTitle() { return title; }

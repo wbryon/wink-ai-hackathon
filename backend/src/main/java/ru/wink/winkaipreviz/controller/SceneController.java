@@ -27,7 +27,7 @@ public class SceneController {
     }
 
     @PutMapping("/scenes/{sceneId}")
-    public SceneDto updateScene(@PathVariable String sceneId, @RequestBody UpdateSceneRequest req) {
+    public SceneDto updateScene(@PathVariable String sceneId, @Valid @RequestBody UpdateSceneRequest req) {
         return service.updateScene(sceneId, req);
     }
 
