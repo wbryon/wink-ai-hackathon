@@ -1,6 +1,7 @@
 package ru.wink.winkaipreviz.service;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -185,6 +186,7 @@ public class PrevizService {
         return dto;
     }
 
+    @NonNull
     private static UUID toUuid(String id) {
         try {
             return UUID.fromString(id);
