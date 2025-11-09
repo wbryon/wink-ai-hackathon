@@ -1,10 +1,8 @@
 package ru.wink.winkaipreviz.service;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 import ru.wink.winkaipreviz.ai.ImageGenPort;
@@ -29,7 +27,13 @@ public class AiImageClient implements ImageGenPort {
         );
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        ResponseEntity<Map<String, Object>> resp = rest.postForEntity(generateUrl, new HttpEntity<>(body, headers), (Class<Map<String, Object>>)(Class<?>)Map.class);
+        ResponseEntity<Map<String, Object>> resp = rest.exchange(
+                generateUrl,
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                new ParameterizedTypeReference<>(){}
+                );
+
         Map<String, Object> v = resp.getBody();
         if (v == null) {
             return new ImageResult(null, "unknown", null, Instant.now());
