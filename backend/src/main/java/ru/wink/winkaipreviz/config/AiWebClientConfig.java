@@ -14,6 +14,7 @@ import reactor.netty.http.client.HttpClient;
 
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
+import java.util.Objects;
 
 @Configuration
 public class AiWebClientConfig {
@@ -27,7 +28,7 @@ public class AiWebClientConfig {
                         .addHandlerLast(new WriteTimeoutHandler(60, TimeUnit.SECONDS)));
 
         return WebClient.builder()
-                .baseUrl(baseUrl)
+				.baseUrl(Objects.requireNonNull(baseUrl, "ai.parser.base-url must not be null"))
                 .clientConnector(new org.springframework.http.client.reactive.ReactorClientHttpConnector(httpClient))
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .filter(ExchangeFilterFunctions.statusError(
