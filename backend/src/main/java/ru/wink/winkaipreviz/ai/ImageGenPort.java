@@ -1,3 +1,7 @@
 package ru.wink.winkaipreviz.ai;
 
-public interface ImageGenPort {}
+import ru.wink.winkaipreviz.entity.DetailLevel;
+
+public interface ImageGenPort {
+    ImageResult generate(String prompt, DetailLevel level);
+}
