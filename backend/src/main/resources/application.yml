@@ -16,13 +16,16 @@ spring:
     show-sql: false
   flyway:
     enabled: true
+  threads:
+    virtual:
+      enabled: true
 
 springdoc:
   override-with-generic-response: false
 
 app:
   storage:
-    upload-dir: ${APP_STORAGE_UPLOAD_DIR:/data/uploads}
+    upload-dir: ${APP_STORAGE_UPLOAD_DIR:./data/uploads}
   parser:
     threshold: 3
     use-stub: false
