@@ -1,8 +1,10 @@
 package ru.wink.winkaipreviz.service;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 import ru.wink.winkaipreviz.dto.*;
 import ru.wink.winkaipreviz.entity.*;
 import ru.wink.winkaipreviz.repository.*;
@@ -49,7 +51,7 @@ public class PrevizService {
         script.setStatus(ScriptStatus.UPLOADED);
         script = scriptRepository.save(script);
 
-        // ✅ Теперь анализ и генерация выполняются асинхронно
+        // Анализ и генерация выполняются асинхронно
         sceneGenerationService.processScriptAsync(script.getId());
 
         ScriptUploadResponse resp = new ScriptUploadResponse();
@@ -62,7 +64,7 @@ public class PrevizService {
 
     @Transactional(readOnly = true)
     public List<SceneDto> getScenes(String scriptIdStr) {
-        UUID scriptId = UUID.fromString(scriptIdStr);
+        UUID scriptId = toUuid(scriptIdStr);
         return sceneRepository.findByScript_Id(scriptId)
                 .stream()
                 .map(this::mapSceneWithFrames)
@@ -71,7 +73,7 @@ public class PrevizService {
 
     @Transactional
     public SceneDto updateScene(String sceneIdStr, UpdateSceneRequest req) {
-        UUID sceneId = UUID.fromString(sceneIdStr);
+        UUID sceneId = toUuid(sceneIdStr);
         Scene scene = sceneRepository.findById(sceneId)
                 .orElseThrow(() -> new IllegalArgumentException("Scene not found: " + sceneIdStr));
         scene.setTitle(req.getTitle());
@@ -88,7 +90,7 @@ public class PrevizService {
 
     @Transactional
     public boolean deleteScene(String sceneIdStr) {
-        UUID sceneId = UUID.fromString(sceneIdStr);
+        UUID sceneId = toUuid(sceneIdStr);
         if (!sceneRepository.existsById(sceneId)) return false;
         sceneRepository.deleteById(sceneId);
         return true;
@@ -96,7 +98,7 @@ public class PrevizService {
 
     @Transactional(readOnly = true)
     public List<FrameDto> getFrames(String sceneIdStr) {
-        UUID sceneId = UUID.fromString(sceneIdStr);
+        UUID sceneId = toUuid(sceneIdStr);
         return frameRepository.findByScene_IdOrderByCreatedAtDesc(sceneId)
                 .stream()
                 .map(this::mapFrame)
@@ -105,27 +107,18 @@ public class PrevizService {
 
     @Transactional
     public FrameDto generateFrame(String sceneIdStr, GenerateFrameRequest req) {
-        UUID sceneId = UUID.fromString(sceneIdStr);
+        UUID sceneId = toUuid(sceneIdStr);
         Scene scene = sceneRepository.findById(sceneId)
                 .orElseThrow(() -> new IllegalArgumentException("Scene not found: " + sceneIdStr));
         DetailLevel level = parseLevel(req.getDetailLevel());
         String prompt = promptCompilerService.compile(scene, level);
-        var result = aiImageClient.generate(prompt, level);
 
-        Frame frame = new Frame();
-        frame.setScene(scene);
-        frame.setDetailLevel(level);
-        frame.setPrompt(prompt);
-        frame.setSeed(result.seed());
-        frame.setModel(result.model());
-        frame.setImageUrl(result.imageUrl());
-        frame = frameRepository.save(frame);
-        return mapFrame(frame);
+        return createFrame(scene, prompt, level);
     }
 
     @Transactional
     public FrameDto regenerateFrame(String frameIdStr, RegenerateFrameRequest req) {
-        UUID frameId = UUID.fromString(frameIdStr);
+        UUID frameId = toUuid(frameIdStr);
         Frame base = frameRepository.findById(frameId)
                 .orElseThrow(() -> new IllegalArgumentException("Frame not found: " + frameIdStr));
         Scene scene = base.getScene();
@@ -133,17 +126,8 @@ public class PrevizService {
         String prompt = (req.getPrompt() != null && !req.getPrompt().isBlank())
                 ? req.getPrompt()
                 : promptCompilerService.compile(scene, level);
-        var result = aiImageClient.generate(prompt, level);
 
-        Frame newFrame = new Frame();
-        newFrame.setScene(scene);
-        newFrame.setDetailLevel(level);
-        newFrame.setPrompt(prompt);
-        newFrame.setSeed(result.seed());
-        newFrame.setModel(result.model());
-        newFrame.setImageUrl(result.imageUrl());
-        newFrame = frameRepository.save(newFrame);
-        return mapFrame(newFrame);
+        return createFrame(scene, prompt, level);
     }
 
     private DetailLevel parseLevel(String s) {
@@ -173,8 +157,20 @@ public class PrevizService {
                 .toList();
 
         dto.setGeneratedFrames(frameDtos);
-        dto.setCurrentFrame(frameDtos.isEmpty() ? null : frameDtos.get(0));
+        dto.setCurrentFrame(frameDtos.isEmpty() ? null : frameDtos.getFirst());
         return dto;
+    }
+
+    private FrameDto createFrame(Scene scene, String prompt, DetailLevel level) {
+        var result = aiImageClient.generate(prompt, level);
+        Frame frame = new Frame();
+        frame.setScene(scene);
+        frame.setDetailLevel(level);
+        frame.setPrompt(prompt);
+        frame.setSeed(result.seed());
+        frame.setModel(result.model());
+        frame.setImageUrl(result.imageUrl());
+        return mapFrame(frameRepository.save(frame));
     }
 
     private FrameDto mapFrame(Frame f) {
@@ -187,5 +183,13 @@ public class PrevizService {
         dto.setModel(f.getModel());
         dto.setCreatedAt(f.getCreatedAt().toString());
         return dto;
+    }
+
+    private static UUID toUuid(String id) {
+        try {
+            return UUID.fromString(id);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid UUID: " + id);
+        }
     }
 }
