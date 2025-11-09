@@ -41,6 +41,9 @@ public class Script {
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
+    @Column(nullable = false)
+    private Instant updatedAt = Instant.now();
+
     @OneToMany(mappedBy = "script", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Scene> scenes = new ArrayList<>();
 
@@ -57,5 +60,20 @@ public class Script {
     public String getParsedJson() { return parsedJson; }
     public void setParsedJson(String parsedJson) { this.parsedJson = parsedJson; }
     public Instant getCreatedAt() { return createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
     public List<Scene> getScenes() { return scenes; }
+
+    @PrePersist
+    public void prePersist() {
+        Instant now = Instant.now();
+        if (createdAt == null) {
+            createdAt = now;
+        }
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        updatedAt = Instant.now();
+    }
 }
