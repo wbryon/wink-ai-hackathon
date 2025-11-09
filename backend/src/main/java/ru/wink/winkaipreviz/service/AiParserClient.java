@@ -3,9 +3,8 @@ package ru.wink.winkaipreviz.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
@@ -29,47 +28,61 @@ public class AiParserClient implements ParserPort {
 	private final List<String> rawJsonHistory = new ArrayList<>();
 	private String lastRawJson = null;
 
-	@SuppressWarnings("unchecked")
 	public List<Scene> parseScenes(String fullText) {
 		try {
 			HttpHeaders headers = new HttpHeaders();
 			headers.setContentType(MediaType.APPLICATION_JSON);
 			Map<String, Object> body = Map.of("text", fullText);
-			HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
-			Map<String, Object> response = restTemplate.postForObject(aiParserUrl, entity, Map.class);
-			if (response == null) return List.of();
+			ResponseEntity<Map<String, Object>> resp = restTemplate.exchange(
+                    aiParserUrl,
+                    HttpMethod.POST,
+                    new HttpEntity<>(body, headers),
+                    new ParameterizedTypeReference<>(){}
+            );
+            Map<String, Object> response = resp.getBody();
+            if (response == null) return List.of();
 
-			try {
-				String json = objectMapper.writeValueAsString(response);
-				this.lastRawJson = json;
-				this.rawJsonHistory.add(json);
-			} catch (JsonProcessingException ignored) {
-				this.lastRawJson = String.valueOf(response);
-				this.rawJsonHistory.add(String.valueOf(response));
-			}
+			saveRawJson(response);
 
 			Object scenesObj = response.get("scenes");
 			if (!(scenesObj instanceof List<?> list)) return List.of();
-			List<Scene> scenes = new ArrayList<>();
-			for (Object o : list) {
-				if (!(o instanceof Map<?, ?> m)) continue;
-				Scene s = new Scene();
-				s.setTitle(asString(m.get("title")));
-				s.setLocation(asString(m.get("location")));
-				s.setDescription(asString(m.get("description")));
-				s.setSemanticSummary(asString(m.get("summary")));
-				s.setTone(asString(m.get("tone")));
-				s.setStyle(asString(m.get("style")));
-				s.setCharacters(asStringList(m.get("characters")));
-				s.setProps(asStringList(m.get("props")));
-				s.setStatus(SceneStatus.PARSED);
-				scenes.add(s);
-			}
-			return scenes;
+
+            return list.stream()
+                    .filter(o -> o instanceof Map<?, ?>)
+                    .map(o -> (Map<?, ?>) o)
+                    .map(this::mapToScene)
+                    .toList();
+
 		} catch (RestClientException ex) {
-			return List.of();
+            return List.of();
 		}
 	}
+
+    private void saveRawJson(Map<String, Object> response) {
+        try {
+            String json = objectMapper.writeValueAsString(response);
+            this.lastRawJson = json;
+            this.rawJsonHistory.add(json);
+        } catch (JsonProcessingException e) {
+            String raw = String.valueOf(response);
+            this.lastRawJson = raw;
+            this.rawJsonHistory.add(raw);
+        }
+    }
+
+    private Scene mapToScene(Map<?, ?> m) {
+        Scene s = new Scene();
+        s.setTitle(asString(m.get("title")));
+        s.setLocation(asString(m.get("location")));
+        s.setDescription(asString(m.get("description")));
+        s.setSemanticSummary(asString(m.get("summary")));
+        s.setTone(asString(m.get("tone")));
+        s.setStyle(asString(m.get("style")));
+        s.setCharacters(asStringList(m.get("characters")));
+        s.setProps(asStringList(m.get("props")));
+        s.setStatus(SceneStatus.PARSED);
+        return s;
+    }
 
 	public String getLastRawJson() {
 		return lastRawJson;
