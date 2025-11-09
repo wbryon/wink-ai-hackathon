@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import ru.wink.winkaipreviz.ai.ImageGenPort;
 import ru.wink.winkaipreviz.ai.ImageResult;
@@ -11,6 +12,7 @@ import ru.wink.winkaipreviz.entity.DetailLevel;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.Optional;
 
 @Component
 public class AiImageClient implements ImageGenPort {
@@ -23,26 +25,30 @@ public class AiImageClient implements ImageGenPort {
     public ImageResult generate(String prompt, DetailLevel level) {
         Map<String, Object> body = Map.of(
                 "prompt", prompt,
-                "lod", level == null ? "mid" : level.name().toLowerCase()
+                "lod", Optional.ofNullable(level).map(Enum::name).orElse("MID").toLowerCase()
         );
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        ResponseEntity<Map<String, Object>> resp = rest.exchange(
-                generateUrl,
-                HttpMethod.POST,
-                new HttpEntity<>(body, headers),
-                new ParameterizedTypeReference<>(){}
-                );
 
-        Map<String, Object> v = resp.getBody();
-        if (v == null) {
-            return new ImageResult(null, "unknown", null, Instant.now());
+        try {
+            ResponseEntity<Map<String, Object>> resp = rest.exchange(
+                    generateUrl,
+                    HttpMethod.POST,
+                    new HttpEntity<>(body, headers),
+                    new ParameterizedTypeReference<>() {}
+            );
+            Map<String, Object> v = resp.getBody();
+            if (v == null) {
+                return new ImageResult(null, "unknown", null, Instant.now());
+            }
+
+            String imageUrl = Optional.ofNullable(v.get("image_url")).map(Object::toString).orElse(null);
+            String model = Optional.ofNullable(v.get("model")).map(Object::toString).orElse("unknown");
+            Integer seed = v.get("seed") instanceof Number n ? n.intValue() : null;
+
+            return new ImageResult(imageUrl, model, seed, Instant.now());
+        } catch (RestClientException ex) {
+            return new ImageResult(null, "error", null, Instant.now());
         }
-        String imageUrl = v.get("image_url") == null ? null : String.valueOf(v.get("image_url"));
-        String model = v.get("model") == null ? "unknown" : String.valueOf(v.get("model"));
-        Integer seed = null;
-        Object seedObj = v.get("seed");
-        if (seedObj instanceof Number n) seed = n.intValue();
-        return new ImageResult(imageUrl, model, seed, Instant.now());
     }
 }
