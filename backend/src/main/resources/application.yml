@@ -39,7 +39,17 @@ ai:
     url: ${AI_GENERATE_URL:http://ai:8000/generate}
 
 ollama:
-  urls: ${OLLAMA_URLS:http://localhost:11434/api/generate,http://localhost:11435/api/generate,http://localhost:11436/api/generate}
-  model: ${OLLAMA_MODEL:mistral}
+  base-url: https://ollama.aiesa.ru
+  api-key: sk_1OrodYGKFwbLo5jTadTuDQ2ZW66U00Fsp4kaDCsbB
+  model: qwen3:32b
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
 
 

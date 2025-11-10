@@ -14,15 +14,21 @@ services:
   backend:
     build: ./backend
     restart: unless-stopped
+    env_file: .env
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/winkdb
-      SPRING_DATASOURCE_USERNAME: wink
-      SPRING_DATASOURCE_PASSWORD: wink
-      AI_PARSER_BASE_URL: http://ai:8000
-      AI_SERVICE_URL: http://ai:8000
-      APP_STORAGE_UPLOAD_DIR: /data/uploads
-      AI_PARSER_URL: http://ai:8000/parse
-      PROMPT_COMPILER_URL: http://prompt-compiler:8010 
+      - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL}
+      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
+      - AI_PARSER_BASE_URL=${AI_PARSER_BASE_URL}
+      - AI_SERVICE_URL=${AI_SERVICE_URL}
+      - APP_STORAGE_UPLOAD_DIR=${APP_STORAGE_UPLOAD_DIR}
+      - AI_PARSER_URL=${AI_PARSER_URL}
+      - PROMPT_COMPILER_URL=${PROMPT_COMPILER_URL}
+
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL}
+      - OLLAMA_API_KEY=${OLLAMA_API_KEY}
+      - OLLAMA_MODEL=${OLLAMA_MODEL}
+      
     depends_on:
       - db
       - ai
