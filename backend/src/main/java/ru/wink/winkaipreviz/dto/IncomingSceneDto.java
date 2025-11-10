@@ -6,6 +6,10 @@ import java.util.List;
 
 public class IncomingSceneDto {
 
+    // Внешний идентификатор от text-ai (идемпотентность по нему, если есть)
+    @Size(max = 128)
+    private String externalId;
+
     @Size(max = 512)
     private String title;
 
@@ -30,6 +34,9 @@ public class IncomingSceneDto {
     // --- getters/setters ---
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
+
+    public String getExternalId() { return externalId; }
+    public void setExternalId(String externalId) { this.externalId = externalId; }
 
     public String getLocation() { return location; }
     public void setLocation(String location) { this.location = location; }
