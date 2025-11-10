@@ -2,25 +2,27 @@ package ru.wink.winkaipreviz.config;
 
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.handler.timeout.WriteTimeoutHandler;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
 
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
-import java.util.Objects;
-import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 
 @Configuration
 public class AiWebClientConfig {
 
+    /**
+     * Единый настраиваемый билдэр WebClient без baseUrl.
+     * Клиенты задают свой baseUrl локально.
+     */
     @Bean
-    public WebClient aiWebClient(@Value("${ai.parser.base-url}") String baseUrl) {
+    public WebClient.Builder aiWebClientBuilder() {
         var httpClient = HttpClient.create()
                 .responseTimeout(Duration.ofSeconds(60))
                 .doOnConnected(conn -> conn
@@ -28,8 +30,7 @@ public class AiWebClientConfig {
                         .addHandlerLast(new WriteTimeoutHandler(60, TimeUnit.SECONDS)));
 
         return WebClient.builder()
-                .baseUrl(Objects.requireNonNull(baseUrl, "ai.parser.base-url must not be null"))
-                .clientConnector(new ReactorClientHttpConnector(Objects.requireNonNull(httpClient)))
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .defaultHeader(HttpHeaders.USER_AGENT, "wink-previz-ai-client/1.0")
                 .filter((request, next) -> next.exchange(request)
@@ -38,7 +39,6 @@ public class AiWebClientConfig {
                                 return response.createException().flatMap(Mono::error);
                             }
                             return Mono.just(response);
-                        }))
-                .build();
+                        }));
     }
 }
