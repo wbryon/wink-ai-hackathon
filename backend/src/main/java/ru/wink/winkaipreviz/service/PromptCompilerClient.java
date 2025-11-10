@@ -1,14 +1,16 @@
 package ru.wink.winkaipreviz.service;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 import ru.wink.winkaipreviz.entity.DetailLevel;
 import ru.wink.winkaipreviz.entity.Scene;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -17,14 +19,16 @@ import java.util.Map;
 @Component
 public class PromptCompilerClient {
 
-	private final RestTemplate restTemplate = new RestTemplate();
+	private final WebClient.Builder webClientBuilder;
 
-	@Value("${prompt.compiler.url:http://prompt-compiler:8010}")
+	@Value("${prompt.compiler.base-url:http://prompt-compiler:8010}")
 	private String compilerBaseUrl;
 
-	public String compile(Scene scene, DetailLevel level) {
-		String url = compilerBaseUrl.endsWith("/") ? compilerBaseUrl + "compile" : compilerBaseUrl + "/compile";
+	public PromptCompilerClient(WebClient.Builder webClientBuilder) {
+		this.webClientBuilder = webClientBuilder;
+	}
 
+	public String compile(Scene scene, DetailLevel level) {
 		Map<String, Object> payload = new HashMap<>();
 		payload.put("scene_id", scene.getId() == null ? "" : scene.getId().toString());
 		payload.put("title", scene.getTitle());
@@ -36,10 +40,19 @@ public class PromptCompilerClient {
 		payload.put("style", toList(scene.getStyle()));
 		payload.put("lod", level == null ? "sketch" : level.name().toLowerCase());
 
-		HttpHeaders headers = new HttpHeaders();
-		headers.setContentType(MediaType.APPLICATION_JSON);
+		Map<String, Object> resp = webClientBuilder
+				.baseUrl(compilerBaseUrl)
+				.build()
+				.post()
+				.uri("/compile")
+				.bodyValue(payload)
+				.retrieve()
+				.onStatus(HttpStatusCode::isError, res -> res.createException().flatMap(Mono::error))
+				.bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+				.timeout(Duration.ofSeconds(30))
+				.retryWhen(Retry.backoff(2, Duration.ofMillis(300)).maxBackoff(Duration.ofSeconds(2)))
+				.block();
 
-		Map<?, ?> resp = restTemplate.postForObject(url, new HttpEntity<>(payload, headers), Map.class);
 		if (resp == null) return "";
 		Object p = resp.get("prompt");
 		return p == null ? "" : String.valueOf(p);
