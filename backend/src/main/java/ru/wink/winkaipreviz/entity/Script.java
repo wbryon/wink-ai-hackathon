@@ -6,103 +6,74 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Script — сущность сценария, загруженного пользователем.
+ * Хранит метаданные файла, текст сценария и статус обработки.
+ */
 @Entity
 @Table(name = "scripts")
 public class Script {
 
-	@Id
-	@GeneratedValue(strategy = GenerationType.AUTO)
-	@Column(name = "id", nullable = false, updatable = false)
-	private UUID id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private UUID id;
 
-	@Column(name = "filename", nullable = false)
-	private String filename;
+    @Column(nullable = false)
+    private String filename;
 
-	@Column(name = "status", nullable = false)
-	private String status;
+    @Column(nullable = false)
+    private String filePath;
 
-	@Column(name = "file_path")
-	private String filePath;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    private ScriptStatus status = ScriptStatus.UPLOADED;
 
-	@Column(name = "created_at", nullable = false, updatable = false)
-	private Instant createdAt;
+    /** Текст, извлечённый из PDF/DOCX */
+    @Lob
+    @Column(columnDefinition = "text")
+    private String textExtracted;
 
-	@Column(name = "updated_at", nullable = false)
-	private Instant updatedAt;
+    /** JSON-ответ от AI-парсера (для анализа и отладки) */
+    @Lob
+    @Column(columnDefinition = "text")
+    private String parsedJson;
 
-	@OneToMany(mappedBy = "script", cascade = CascadeType.ALL, orphanRemoval = true)
-	private List<Scene> scenes = new ArrayList<>();
+    @Column(nullable = false, updatable = false)
+    private Instant createdAt = Instant.now();
 
-	@PrePersist
-	public void prePersist() {
-		Instant now = Instant.now();
-		this.createdAt = now;
-		this.updatedAt = now;
-		if (this.status == null) {
-			this.status = "UPLOADED";
-		}
-	}
+    @Column(nullable = false)
+    private Instant updatedAt = Instant.now();
 
-	@PreUpdate
-	public void preUpdate() {
-		this.updatedAt = Instant.now();
-	}
+    @OneToMany(mappedBy = "script", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Scene> scenes = new ArrayList<>();
 
-	public UUID getId() {
-		return id;
-	}
+    // --- getters/setters ---
+    public UUID getId() { return id; }
+    public String getFilename() { return filename; }
+    public void setFilename(String filename) { this.filename = filename; }
+    public String getFilePath() { return filePath; }
+    public void setFilePath(String filePath) { this.filePath = filePath; }
+    public ScriptStatus getStatus() { return status; }
+    public void setStatus(ScriptStatus status) { this.status = status; }
+    public String getTextExtracted() { return textExtracted; }
+    public void setTextExtracted(String textExtracted) { this.textExtracted = textExtracted; }
+    public String getParsedJson() { return parsedJson; }
+    public void setParsedJson(String parsedJson) { this.parsedJson = parsedJson; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
+    public List<Scene> getScenes() { return scenes; }
 
-	public void setId(UUID id) {
-		this.id = id;
-	}
+    @PrePersist
+    public void prePersist() {
+        Instant now = Instant.now();
+        if (createdAt == null) {
+            createdAt = now;
+        }
+        updatedAt = now;
+    }
 
-	public String getFilename() {
-		return filename;
-	}
-
-	public void setFilename(String filename) {
-		this.filename = filename;
-	}
-
-	public String getStatus() {
-		return status;
-	}
-
-	public void setStatus(String status) {
-		this.status = status;
-	}
-
-	public String getFilePath() {
-		return filePath;
-	}
-
-	public void setFilePath(String filePath) {
-		this.filePath = filePath;
-	}
-
-	public Instant getCreatedAt() {
-		return createdAt;
-	}
-
-	public void setCreatedAt(Instant createdAt) {
-		this.createdAt = createdAt;
-	}
-
-	public Instant getUpdatedAt() {
-		return updatedAt;
-	}
-
-	public void setUpdatedAt(Instant updatedAt) {
-		this.updatedAt = updatedAt;
-	}
-
-	public List<Scene> getScenes() {
-		return scenes;
-	}
-
-	public void setScenes(List<Scene> scenes) {
-		this.scenes = scenes;
-	}
+    @PreUpdate
+    public void preUpdate() {
+        updatedAt = Instant.now();
+    }
 }
-
-

@@ -1,52 +1,108 @@
 package ru.wink.winkaipreviz.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
+import ru.wink.winkaipreviz.ai.ParserPort;
 import ru.wink.winkaipreviz.entity.Scene;
+import ru.wink.winkaipreviz.entity.SceneStatus;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 @Component
-public class AiParserClient {
+public class AiParserClient implements ParserPort {
 
-	private final RestTemplate restTemplate = new RestTemplate();
+	private final WebClient.Builder webClientBuilder;
+	private final ObjectMapper objectMapper = new ObjectMapper();
 
-	@Value("${ai.parser.url:http://ai:8000/parse}")
-	private String aiParserUrl;
+	@Value("${ai.parser.base-url:http://ai:8000}")
+	private String parserBaseUrl;
 
-	@SuppressWarnings("unchecked")
-	public List<Scene> parse(String fullText) {
+	private final List<String> rawJsonHistory = new ArrayList<>();
+	private String lastRawJson = null;
+
+	public AiParserClient(WebClient.Builder webClientBuilder) {
+		this.webClientBuilder = webClientBuilder;
+	}
+
+	public List<Scene> parseScenes(String fullText) {
 		try {
-			HttpHeaders headers = new HttpHeaders();
-			headers.setContentType(MediaType.APPLICATION_JSON);
-			Map<String, Object> body = Map.of("text", fullText);
-			HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
-			Map<String, Object> response = restTemplate.postForObject(aiParserUrl, entity, Map.class);
+			Map<String, Object> response = webClientBuilder
+					.baseUrl(parserBaseUrl)
+					.build()
+					.post()
+					.uri("/parse")
+					.bodyValue(Map.of("text", fullText))
+					.retrieve()
+					.onStatus(HttpStatusCode::isError, res -> res.createException().flatMap(Mono::error))
+					.bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+					.timeout(Duration.ofSeconds(60))
+					.retryWhen(Retry.backoff(2, Duration.ofMillis(300)).maxBackoff(Duration.ofSeconds(2)))
+					.block();
+
 			if (response == null) return List.of();
+
+			saveRawJson(response);
+
 			Object scenesObj = response.get("scenes");
 			if (!(scenesObj instanceof List<?> list)) return List.of();
-			List<Scene> scenes = new ArrayList<>();
-			for (Object o : list) {
-				if (!(o instanceof Map<?, ?> m)) continue;
-				Scene s = new Scene();
-				s.setTitle(asString(m.get("title")));
-				s.setLocation(asString(m.get("location")));
-				s.setDescription(asString(m.get("description")));
-				s.setCharacters(asStringList(m.get("characters")));
-				s.setProps(asStringList(m.get("props")));
-				scenes.add(s);
-			}
-			return scenes;
-		} catch (RestClientException ex) {
+
+			return list.stream()
+					.filter(o -> o instanceof Map<?, ?>)
+					.map(o -> (Map<?, ?>) o)
+					.map(this::mapToScene)
+					.toList();
+
+		} catch (Exception ex) {
 			return List.of();
 		}
+	}
+
+    private void saveRawJson(Map<String, Object> response) {
+        try {
+            String json = objectMapper.writeValueAsString(response);
+            this.lastRawJson = json;
+            this.rawJsonHistory.add(json);
+        } catch (JsonProcessingException e) {
+            String raw = String.valueOf(response);
+            this.lastRawJson = raw;
+            this.rawJsonHistory.add(raw);
+        }
+    }
+
+    private Scene mapToScene(Map<?, ?> m) {
+        Scene s = new Scene();
+        s.setTitle(asString(m.get("title")));
+        s.setLocation(asString(m.get("location")));
+        s.setDescription(asString(m.get("description")));
+        s.setSemanticSummary(asString(m.get("summary")));
+        s.setTone(asString(m.get("tone")));
+        s.setStyle(asString(m.get("style")));
+        s.setCharacters(asStringList(m.get("characters")));
+        s.setProps(asStringList(m.get("props")));
+        s.setStatus(SceneStatus.PARSED);
+        return s;
+    }
+
+	public String getLastRawJson() {
+		return lastRawJson;
+	}
+
+	public List<String> getRawJsonHistory() {
+		return new ArrayList<>(rawJsonHistory);
+	}
+
+	public void clearRawJsonHistory() {
+		rawJsonHistory.clear();
 	}
 
 	private static String asString(Object v) {
@@ -62,5 +118,4 @@ public class AiParserClient {
 		return new ArrayList<>();
 	}
 }
-
 

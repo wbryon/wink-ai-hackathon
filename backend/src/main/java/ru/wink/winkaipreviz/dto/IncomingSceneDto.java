@@ -1,34 +1,42 @@
 package ru.wink.winkaipreviz.dto;
 
+import jakarta.validation.constraints.Size;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * DTO для передачи информации о сцене и связанных кадрах.
- */
-public class SceneDto {
+public class IncomingSceneDto {
 
-    private String id;
+    // Внешний идентификатор от text-ai (идемпотентность по нему, если есть)
+    @Size(max = 128)
+    private String externalId;
+
+    @Size(max = 512)
     private String title;
+
+    @Size(max = 256)
     private String location;
+
+    // Оригинальное описание сцены (как есть из парсера)
     private String description;
+
+    // Семантический пересказ (если есть у парсера)
     private String semanticSummary;
+
+    @Size(max = 128)
     private String tone;
+
+    @Size(max = 128)
     private String style;
-    private String status;
 
     private List<String> characters = new ArrayList<>();
     private List<String> props = new ArrayList<>();
 
-    private List<FrameDto> generatedFrames = new ArrayList<>();
-    private FrameDto currentFrame;
-
     // --- getters/setters ---
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
-
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
+
+    public String getExternalId() { return externalId; }
+    public void setExternalId(String externalId) { this.externalId = externalId; }
 
     public String getLocation() { return location; }
     public void setLocation(String location) { this.location = location; }
@@ -45,18 +53,11 @@ public class SceneDto {
     public String getStyle() { return style; }
     public void setStyle(String style) { this.style = style; }
 
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
-
     public List<String> getCharacters() { return characters; }
     public void setCharacters(List<String> characters) { this.characters = characters; }
 
     public List<String> getProps() { return props; }
     public void setProps(List<String> props) { this.props = props; }
-
-    public List<FrameDto> getGeneratedFrames() { return generatedFrames; }
-    public void setGeneratedFrames(List<FrameDto> generatedFrames) { this.generatedFrames = generatedFrames; }
-
-    public FrameDto getCurrentFrame() { return currentFrame; }
-    public void setCurrentFrame(FrameDto currentFrame) { this.currentFrame = currentFrame; }
 }
+
+

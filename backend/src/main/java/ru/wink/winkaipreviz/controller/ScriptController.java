@@ -35,10 +35,7 @@ public class ScriptController {
         return service.getScenes(scriptId);
     }
 
-    @PostMapping("/{scriptId}/scenes")
-    public SceneDto addScene(@PathVariable String scriptId, @RequestBody AddSceneRequest req) {
-        return service.addScene(scriptId, req);
-    }
+    // addScene удалён в новой схеме; сцены создаются пайплайном парсинга
 
     @GetMapping("/{scriptId}/export")
     public ResponseEntity<Resource> export(@PathVariable String scriptId) {

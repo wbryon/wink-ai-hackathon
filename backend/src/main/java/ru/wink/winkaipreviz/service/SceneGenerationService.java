@@ -1,0 +1,121 @@
+package ru.wink.winkaipreviz.service;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import ru.wink.winkaipreviz.ai.ImageResult;
+import ru.wink.winkaipreviz.entity.*;
+import ru.wink.winkaipreviz.repository.*;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * Асинхронная обработка сценария:
+ * 1. Извлечение текста
+ * 2. Парсинг сцен
+ * 3. Генерация эскизов/финальных кадров
+ */
+@Service
+public class SceneGenerationService {
+
+    private final ScriptRepository scriptRepository;
+    private final SceneRepository sceneRepository;
+    private final FrameRepository frameRepository;
+    private final FileStorageService fileStorageService;
+    private final TextChunkerService textChunkerService;
+    private final AiParserClient parserClient;
+    private final AiImageClient imageClient;
+	private final PromptCompilerClient promptCompiler;
+
+    public SceneGenerationService(ScriptRepository scriptRepository,
+                                  SceneRepository sceneRepository,
+                                  FrameRepository frameRepository,
+                                  FileStorageService fileStorageService,
+                                  TextChunkerService textChunkerService,
+                                  AiParserClient parserClient,
+                                  AiImageClient imageClient,
+								  PromptCompilerClient promptCompiler) {
+        this.scriptRepository = scriptRepository;
+        this.sceneRepository = sceneRepository;
+        this.frameRepository = frameRepository;
+        this.fileStorageService = fileStorageService;
+        this.textChunkerService = textChunkerService;
+        this.parserClient = parserClient;
+        this.imageClient = imageClient;
+        this.promptCompiler = promptCompiler;
+    }
+
+    /**
+     * Асинхронный процесс — отдельный поток (virtual thread)
+     */
+    public void processScriptAsync(UUID scriptId) {
+        Thread.ofVirtual().start(() -> {
+            Script script = scriptRepository.findById(scriptId)
+                    .orElseThrow(() -> new IllegalArgumentException("Script not found"));
+
+            try {
+                script.setStatus(ScriptStatus.PARSING);
+                scriptRepository.save(script);
+
+                // 1️⃣ Извлечение текста
+                String text = fileStorageService.extractText(script.getFilePath());
+                script.setTextExtracted(text);
+
+                // 2️⃣ Чанкирование и парсинг сцен AI по чанкам
+                List<String> chunks = textChunkerService.chunk(text);
+                List<Scene> parsedScenes = new java.util.ArrayList<>();
+                for (String chunk : chunks) {
+                    List<Scene> part = parserClient.parseScenes(chunk);
+                    if (part != null && !part.isEmpty()) parsedScenes.addAll(part);
+                }
+                for (Scene scene : parsedScenes) {
+                    scene.setScript(script);
+                    scene.setStatus(SceneStatus.PARSED);
+                }
+                sceneRepository.saveAll(parsedScenes);
+                // агрегируем все сырые JSON-ответы по чанкам в единый массив
+                var rawList = parserClient.getRawJsonHistory();
+                if (rawList != null && !rawList.isEmpty()) {
+                    String aggregated = "[" + String.join(",", rawList) + "]";
+                    script.setParsedJson(aggregated);
+                    parserClient.clearRawJsonHistory();
+                }
+                script.setStatus(ScriptStatus.PARSED);
+                scriptRepository.save(script);
+
+                // 3️Генерация изображений по запросу пользователя
+                // Оставляем сценарий в статусе PARSED
+                scriptRepository.save(script);
+
+            } catch (Exception e) {
+                script.setStatus(ScriptStatus.FAILED);
+                scriptRepository.save(script);
+                e.printStackTrace();
+            }
+        });
+    }
+
+    @Transactional
+    public void generateSceneFrame(Scene scene, DetailLevel level) {
+        Instant start = Instant.now();
+        scene.setStatus(SceneStatus.GENERATING);
+        sceneRepository.save(scene);
+
+        String prompt = promptCompiler.compile(scene, level);
+        ImageResult result = imageClient.generate(prompt, level);
+
+        Frame frame = new Frame();
+        frame.setScene(scene);
+        frame.setPrompt(prompt);
+        frame.setDetailLevel(level);
+        frame.setImageUrl(result.imageUrl());
+        frame.setModel(result.model());
+        frame.setSeed(result.seed());
+        frame.setGenerationMs(java.time.Duration.between(start, Instant.now()).toMillis());
+        frameRepository.save(frame);
+
+        scene.setStatus(SceneStatus.READY);
+        sceneRepository.save(scene);
+    }
+}

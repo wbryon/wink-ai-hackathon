@@ -69,7 +69,6 @@ public class InMemoryStore {
 		existing.setCharacters(nullSafeList(req.getCharacters()));
 		existing.setProps(nullSafeList(req.getProps()));
 		existing.setDescription(req.getDescription());
-		existing.setPrompt(req.getPrompt());
 		return deepCopy(existing);
 	}
 
@@ -160,7 +159,6 @@ public class InMemoryStore {
 		scene.setCharacters(nullSafeList(src.getCharacters()));
 		scene.setProps(nullSafeList(src.getProps()));
 		scene.setDescription(src.getDescription());
-		scene.setPrompt(src.getPrompt());
 		scene.setCurrentFrame(null);
 		scene.setGeneratedFrames(new ArrayList<>());
 
@@ -223,7 +221,6 @@ public class InMemoryStore {
 		c.setCharacters(nullSafeList(src.getCharacters()));
 		c.setProps(nullSafeList(src.getProps()));
 		c.setDescription(src.getDescription());
-		c.setPrompt(src.getPrompt());
 		c.setCurrentFrame(deepCopy(src.getCurrentFrame()));
 		List<FrameDto> frames = new ArrayList<>();
 		if (src.getGeneratedFrames() != null) {
