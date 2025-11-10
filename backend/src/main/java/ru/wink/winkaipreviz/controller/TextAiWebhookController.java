@@ -23,8 +23,12 @@ public class TextAiWebhookController {
     @PostMapping(path = "/scenes", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public Map<String, Object> acceptScenes(@Valid @RequestBody ScenesWebhookRequest req) {
         List<SceneDto> saved = service.ingestScenes(req.getScriptId(), req.getScenes());
+        int requested = req.getScenes() == null ? 0 : req.getScenes().size();
+        int accepted = saved.size();
+        int skipped = Math.max(0, requested - accepted);
         return Map.of(
-                "accepted", saved.size(),
+                "accepted", accepted,
+                "skipped", skipped,
                 "scenes", saved
         );
     }
