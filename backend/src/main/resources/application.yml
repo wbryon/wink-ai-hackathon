@@ -36,7 +36,7 @@ ai:
   parser:
     url: ${AI_PARSER_URL:http://ai:8000/parse}
   generate:
-    url: ${AI_GENERATE_URL:http://ai:8000/generate}
+    base-url: ${AI_GENERATE_BASE_URL:http://ai:8000}
 
 management:
   endpoints:

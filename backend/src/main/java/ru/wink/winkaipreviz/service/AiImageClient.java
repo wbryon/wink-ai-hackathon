@@ -24,7 +24,7 @@ public class AiImageClient implements ImageGenPort {
     private final WebClient webClient;
     private final ExecutorService virtualExecutor;
 
-    public AiImageClient(@Value("${ai.generate.url:http://ai:8000/generate}") String baseUrl) {
+    public AiImageClient(@Value("${ai.generate.base-url:http://ai:8000}") String baseUrl) {
         this.webClient = WebClient.builder()
                 .baseUrl(baseUrl)
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
