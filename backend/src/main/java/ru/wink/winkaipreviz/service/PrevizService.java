@@ -131,6 +131,47 @@ public class PrevizService {
         return createFrame(scene, prompt, level);
     }
 
+    /**
+     * Приём распарсенных сцен от text-ai (webhook): сохраняем сцены без автогенерации кадров.
+     */
+    @Transactional
+    public List<SceneDto> ingestScenes(String scriptIdStr, List<IncomingSceneDto> incoming) {
+        UUID scriptId = toUuid(scriptIdStr);
+        Script script = scriptRepository.findById(scriptId)
+                .orElseThrow(() -> new IllegalArgumentException("Script not found: " + scriptIdStr));
+
+        if (incoming == null || incoming.isEmpty()) {
+            return List.of();
+        }
+
+        List<Scene> toSave = new ArrayList<>();
+        for (IncomingSceneDto in : incoming) {
+            Scene s = new Scene();
+            s.setScript(script);
+            s.setTitle(in.getTitle());
+            s.setLocation(in.getLocation());
+            // semanticSummary в приоритете, иначе оригинальное описание
+            s.setSemanticSummary(in.getSemanticSummary());
+            s.setDescription(in.getDescription());
+            s.setTone(in.getTone());
+            s.setStyle(in.getStyle());
+            s.setCharacters(in.getCharacters() == null ? new ArrayList<>() : new ArrayList<>(in.getCharacters()));
+            s.setProps(in.getProps() == null ? new ArrayList<>() : new ArrayList<>(in.getProps()));
+            s.setStatus(SceneStatus.PARSED);
+            toSave.add(s);
+        }
+
+        List<Scene> saved = sceneRepository.saveAll(toSave);
+
+        // Обновляем статус сценария как минимум до PARSED (если был загружен)
+        if (script.getStatus() == ScriptStatus.UPLOADED) {
+            script.setStatus(ScriptStatus.PARSED);
+            scriptRepository.save(script);
+        }
+
+        return saved.stream().map(this::mapSceneWithFrames).toList();
+    }
+
     private DetailLevel parseLevel(String s) {
         if (s == null) return DetailLevel.MID;
         try {
