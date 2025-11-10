@@ -1,47 +1,84 @@
 package ru.wink.winkaipreviz.service;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.List;
-import java.util.concurrent.Callable;
+import java.util.Map;
 
 @Service
 public class OllamaClient {
 
-	private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final WebClient webClient;
+    private final String model;
 
-	@Value("#{'${ollama.urls:http://localhost:11434/api/generate,http://localhost:11435/api/generate,http://localhost:11436/api/generate}'.split(',')}")
-	private List<String> ollamaUrls;
+    public OllamaClient(
+            @Value("${ollama.base-url}") String baseUrl,
+            @Value("${ollama.api-key}") String apiKey,
+            @Value("${ollama.model:qwen3:32b}") String model) {
 
-	@Value("${ollama.model:mistral}")
-	private String modelName;
+        this.model = model;
+        this.webClient = WebClient.builder()
+                .baseUrl(baseUrl)
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .build();
+    }
 
-	public Callable<String> buildTask(String sceneText, int index) {
-		return () -> {
-			String escaped = sceneText.replace("\"", "\\\"");
-			String body = """
-				{
-				  "model": "%s",
-				  "prompt": "Разбей следующую сцену на смысловые элементы и верни JSON:\\n%s"
-				}
-				""".formatted(modelName, escaped);
+    /**
+     * Простая генерация текста через /api/generate
+     */
+    public Mono<String> generateText(String prompt) {
+        Map<String, Object> body = Map.of(
+                "model", model,
+                "prompt", prompt,
+                "stream", false,
+                "options", Map.of(
+                        "temperature", 0.5,
+                        "num_predict", 1000
+                )
+        );
 
-			String url = ollamaUrls.get(index % ollamaUrls.size());
-			HttpRequest request = HttpRequest.newBuilder()
-				.uri(URI.create(url))
-				.header("Content-Type", "application/json")
-				.POST(HttpRequest.BodyPublishers.ofString(body))
-				.build();
+        return webClient.post()
+                .uri("/api/generate")
+                .bodyValue(body)
+                .retrieve()
+                .bodyToMono(Map.class)
+                .map(response -> (String) response.get("response"));
+    }
 
-			HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-			return response.body();
-		};
-	}
+    /**
+     * Диалоговый режим через /api/chat
+     */
+    public Mono<String> chat(List<Map<String, String>> messages) {
+        Map<String, Object> body = Map.of(
+                "model", model,
+                "messages", messages,
+                "stream", false
+        );
+
+        return webClient.post()
+                .uri("/api/chat")
+                .bodyValue(body)
+                .retrieve()
+                .bodyToMono(Map.class)
+                .map(response -> {
+                    Map<String, Object> msg = (Map<String, Object>) response.get("message");
+                    return msg != null ? (String) msg.get("content") : "";
+                });
+    }
+
+    /**
+     * Получение списка моделей
+     */
+    public Mono<Map> listModels() {
+        return webClient.get()
+                .uri("/api/tags")
+                .retrieve()
+                .bodyToMono(Map.class);
+    }
 }
-
-
