@@ -13,7 +13,7 @@ import java.util.UUID;
 /**
  * Асинхронная обработка сценария:
  * 1. Извлечение текста
- * 2. Парсинг сцен (AI или RuleParser)
+ * 2. Парсинг сцен
  * 3. Генерация эскизов/финальных кадров
  */
 @Service
@@ -84,14 +84,8 @@ public class SceneGenerationService {
                 script.setStatus(ScriptStatus.PARSED);
                 scriptRepository.save(script);
 
-                // 3️⃣ Генерация изображений
-                script.setStatus(ScriptStatus.GENERATING);
-                scriptRepository.save(script);
-                for (Scene scene : parsedScenes) {
-                    generateSceneFrame(scene, DetailLevel.SKETCH);
-                }
-
-                script.setStatus(ScriptStatus.READY);
+                // 3️Генерация изображений по запросу пользователя
+                // Оставляем сценарий в статусе PARSED
                 scriptRepository.save(script);
 
             } catch (Exception e) {
