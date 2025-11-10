@@ -12,4 +12,8 @@ import java.util.UUID;
 public interface SceneRepository extends JpaRepository<Scene, UUID> {
     @EntityGraph(attributePaths = "frames")
     List<Scene> findByScript_Id(UUID scriptId);
+
+    boolean existsByScript_IdAndExternalId(UUID scriptId, String externalId);
+
+    boolean existsByScript_IdAndDedupHash(UUID scriptId, String dedupHash);
 }
