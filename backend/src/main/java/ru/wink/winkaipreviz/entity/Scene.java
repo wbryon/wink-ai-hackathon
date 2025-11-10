@@ -22,6 +22,14 @@ public class Scene {
     @JoinColumn(name = "script_id", nullable = false)
     private Script script;
 
+    /** Внешний идентификатор сцены от text-ai (для идемпотентности) */
+    @Column(name = "external_id", length = 128)
+    private String externalId;
+
+    /** Хэш-отпечаток содержимого сцены (для идемпотентности при отсутствии externalId) */
+    @Column(name = "dedup_hash", length = 64)
+    private String dedupHash;
+
     /** Заголовок сцены, например "ИНТ. КАФЕ У ОКНА — ВЕЧЕР" */
     @Column(length = 512)
     private String title;
@@ -74,6 +82,10 @@ public class Scene {
     public UUID getId() { return id; }
     public Script getScript() { return script; }
     public void setScript(Script script) { this.script = script; }
+    public String getExternalId() { return externalId; }
+    public void setExternalId(String externalId) { this.externalId = externalId; }
+    public String getDedupHash() { return dedupHash; }
+    public void setDedupHash(String dedupHash) { this.dedupHash = dedupHash; }
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
     public String getLocation() { return location; }
