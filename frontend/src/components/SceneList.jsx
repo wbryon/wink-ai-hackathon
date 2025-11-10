@@ -11,13 +11,14 @@ import {
   Save,
   X
 } from 'lucide-react';
-import { updateScene, deleteScene, addScene } from '../api/apiClient';
+import { updateScene, deleteScene, addScene, generateFrame } from '../api/apiClient';
 
 const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
   const [scenes, setScenes] = useState(initialScenes || []);
   const [expandedScenes, setExpandedScenes] = useState(new Set([0])); // Первая сцена открыта по умолчанию
   const [editingScene, setEditingScene] = useState(null);
   const [editFormData, setEditFormData] = useState({});
+  const [generating, setGenerating] = useState({}); // per-scene loading flags
 
   // Переключение раскрытия сцены
   const toggleScene = (index) => {
@@ -103,6 +104,27 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
     } catch (error) {
       console.error('Error adding scene:', error);
       alert('Ошибка при добавлении сцены');
+    }
+  };
+
+  // Сгенерировать кадр для сцены
+  const handleGenerateFrame = async (sceneId, index) => {
+    try {
+      setGenerating(prev => ({ ...prev, [index]: true }));
+      const frame = await generateFrame(sceneId, 'medium');
+      const newScenes = [...scenes];
+      const prevFrames = Array.isArray(newScenes[index].generatedFrames) ? newScenes[index].generatedFrames : [];
+      newScenes[index] = {
+        ...newScenes[index],
+        currentFrame: frame,
+        generatedFrames: [...prevFrames, frame],
+      };
+      setScenes(newScenes);
+    } catch (error) {
+      console.error('Error generating frame:', error);
+      alert('Ошибка при генерации кадра');
+    } finally {
+      setGenerating(prev => ({ ...prev, [index]: false }));
     }
   };
 
@@ -347,6 +369,17 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
                             </p>
                           </div>
                         )}
+
+                        {/* Действия по сцене */}
+                        <div className="pt-2">
+                          <button
+                            onClick={() => handleGenerateFrame(scene.id, index)}
+                            disabled={!!generating[index]}
+                            className="btn-wink"
+                          >
+                            {generating[index] ? 'Генерация...' : 'Сгенерировать кадр'}
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
