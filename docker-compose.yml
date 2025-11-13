@@ -13,6 +13,7 @@ services:
 
   backend:
     build: ./backend
+    image: backend:dev
     restart: unless-stopped
     env_file: .env
     environment:
@@ -23,7 +24,9 @@ services:
       - AI_SERVICE_URL=${AI_SERVICE_URL}
       - APP_STORAGE_UPLOAD_DIR=${APP_STORAGE_UPLOAD_DIR}
       - AI_PARSER_URL=${AI_PARSER_URL}
-      - PROMPT_COMPILER_URL=${PROMPT_COMPILER_URL}
+      - SCRIPT_PROCESSOR_BASE_URL=http://script-processor:8000
+      - SCRIPT_PROCESSOR_MODEL=${SCRIPT_PROCESSOR_MODEL:-Qwen/Qwen3-32B}
+      - APP_WORKFLOWS_DIR=${APP_WORKFLOWS_DIR:-/app/workflows}
 
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL}
       - OLLAMA_API_KEY=${OLLAMA_API_KEY}
@@ -32,23 +35,64 @@ services:
     depends_on:
       - db
       - ai
-      - prompt-compiler
+      - script-processor
     ports:
       - "8080:8080"
     volumes:
       - ./data/uploads:/data/uploads
+      - ./ai-modules/workflows:/app/workflows
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   ai:
     build: ./ai-modules
+    image: ai:dev
     restart: unless-stopped
     ports:
       - "8000:8000"
+    environment:
+      - COMFY_BASE_URL=${COMFY_BASE_URL:-http://host.docker.internal:8188}
+      - STORAGE_DIR=/data/frames
+      - IMAGE_URL_BASE=http://localhost:8000/images
+      - WORKFLOWS_DIR=/app/workflows
+    volumes:
+      - ./data/frames:/data/frames
+      - ./ai-modules/workflows:/app/workflows:ro
 
-  prompt-compiler:
-    build: ./prompt-compiler
+  script-processor:
+    build: ./script_processor
+    image: script-processor:dev
     restart: unless-stopped
     ports:
-      - "8010:8010"
+      - "8020:8000"
+    volumes:
+      - ./script_processor/models:/app/models:ro
+      - ./script_processor/chunks:/app/chunks
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL:-/api}
+        - VITE_COMFY_URL=${VITE_COMFY_URL:-http://host.docker.internal:8188}
+    image: frontend:dev
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
 volumes:
   db_data:

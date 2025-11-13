@@ -16,9 +16,11 @@ public class WebConfig implements WebMvcConfigurer {
         String[] origins = allowedOrigins.split(",");
         registry.addMapping("/api/**")
                 .allowedOrigins(origins)
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
                 .allowedHeaders("*")
-                .allowCredentials(false);
+                .exposedHeaders("*")
+                .allowCredentials(true)
+                .maxAge(3600);
     }
 }
 

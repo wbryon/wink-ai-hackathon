@@ -11,7 +11,7 @@ import {
   Save,
   X
 } from 'lucide-react';
-import { updateScene, deleteScene, addScene, generateFrame } from '../api/apiClient';
+import { updateScene, deleteScene, addScene, generateFrame, refineScene } from '../api/apiClient';
 
 const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
   const [scenes, setScenes] = useState(initialScenes || []);
@@ -19,6 +19,8 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
   const [editingScene, setEditingScene] = useState(null);
   const [editFormData, setEditFormData] = useState({});
   const [generating, setGenerating] = useState({}); // per-scene loading flags
+  const [refineText, setRefineText] = useState({}); // per-scene quick edit text
+  const [refining, setRefining] = useState({}); // per-scene refine loading
 
   // Переключение раскрытия сцены
   const toggleScene = (index) => {
@@ -125,6 +127,26 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
       alert('Ошибка при генерации кадра');
     } finally {
       setGenerating(prev => ({ ...prev, [index]: false }));
+    }
+  };
+
+  // Быстрая правка сцены коротким текстом
+  const handleRefineScene = async (sceneId, index) => {
+    const instruction = (refineText[index] || '').trim();
+    if (!instruction) return;
+
+    try {
+      setRefining(prev => ({ ...prev, [index]: true }));
+      const updated = await refineScene(sceneId, instruction);
+      const newScenes = [...scenes];
+      newScenes[index] = updated;
+      setScenes(newScenes);
+      setRefineText(prev => ({ ...prev, [index]: '' }));
+    } catch (error) {
+      console.error('Error refining scene:', error);
+      alert('Ошибка при применении правки. Попробуйте ещё раз.');
+    } finally {
+      setRefining(prev => ({ ...prev, [index]: false }));
     }
   };
 
@@ -370,15 +392,42 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
                           </div>
                         )}
 
-                        {/* Действия по сцене */}
-                        <div className="pt-2">
-                          <button
-                            onClick={() => handleGenerateFrame(scene.id, index)}
-                            disabled={!!generating[index]}
-                            className="btn-wink"
-                          >
-                            {generating[index] ? 'Генерация...' : 'Сгенерировать кадр'}
-                          </button>
+                        {/* Быстрые действия по сцене */}
+                        <div className="pt-4 space-y-3">
+                          {/* Быстрая текстовая правка */}
+                          <div>
+                            <label className="block text-xs font-bold mb-1 text-gray-400">
+                              Короткая правка сцены
+                            </label>
+                            <textarea
+                              value={refineText[index] || ''}
+                              onChange={(e) =>
+                                setRefineText(prev => ({ ...prev, [index]: e.target.value }))
+                              }
+                              className="input-wink w-full h-20 resize-none text-xs"
+                              placeholder="Например: сделать атмосферу более мрачной и добавить дождь за окном"
+                            />
+                            <div className="flex justify-end mt-2">
+                              <button
+                                onClick={() => handleRefineScene(scene.id, index)}
+                                disabled={refining[index] || !(refineText[index] || '').trim()}
+                                className="px-4 py-2 text-xs border border-wink-orange text-wink-orange rounded-lg hover:bg-wink-orange hover:text-wink-black transition-colors"
+                              >
+                                {refining[index] ? 'Применение...' : 'Применить правку'}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Генерация кадра */}
+                          <div>
+                            <button
+                              onClick={() => handleGenerateFrame(scene.id, index)}
+                              disabled={!!generating[index]}
+                              className="btn-wink"
+                            >
+                              {generating[index] ? 'Генерация...' : 'Сгенерировать кадр'}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     )}

@@ -1,0 +1,96 @@
+// Схема enriched JSON (что именно хотим на выходе из Enhancer)
+
+{
+  "scene_id": "S_001",
+  "slugline_raw": "ИНТ./НАТ. ШКОЛА №6. ЛЕСТНИЦА. НОЧЬ.",
+  "location": {
+    "raw": "ШКОЛА №6. ЛЕСТНИЦА",
+    "norm": "SCHOOL_6_STAIRCASE",
+    "description": "длинный школьный коридор с лестницей, старое здание",
+    "environment_details": [
+      "узкий коридор",
+      "старые стены",
+      "тусклый свет",
+      "длинная перспектива"
+    ]
+  },
+  "time": {
+    "raw": "НОЧЬ",
+    "norm": "NIGHT",
+    "description": "ночное время, искусственное освещение внутри здания"
+  },
+  "characters": [
+    {
+      "name": "КАЙРАНСКИЙ",
+      "norm": "KAYRANSKII",
+      "role": "professor",
+      "age": 60,
+      "gender": "male",
+      "appearance": "уставший мужчина, примерно 60 лет",
+      "clothing": [
+        "белый медицинский халат",
+        "пальто, накинутое на ходу",
+        "марлевая маска на одном ухе"
+      ],
+      "props": ["папироса"],
+      "pose": "решительно идет вперед по коридору, слегка наклонившись",
+      "action": "торопливо натягивает пальто, нервно держит папиросу в зубах",
+      "position_in_frame": "на переднем плане, в центре кадра",
+      "emotion": "нервное напряжение, торопливость"
+    },
+    {
+      "name": "ВЕРА ТРЕШНИКОВА",
+      "norm": "VERA_TRESHNIKOVA",
+      "role": "nurse",
+      "age": 30,
+      "gender": "female",
+      "appearance": "молодая медсестра",
+      "clothing": ["медицинская форма"],
+      "pose": "быстро идет за профессором",
+      "action": "торопливо следует за ним, держа в руках бумаги или список",
+      "position_in_frame": "позади слева",
+      "emotion": "сосредоточенность, лёгкая тревога"
+    },
+    {
+      "name": "ТЁТЯ ФЕНЯ",
+      "norm": "TETYA_FENYA",
+      "role": "orderly",
+      "age": 60,
+      "gender": "female",
+      "appearance": "пожилая санитарка",
+      "clothing": ["простая санитарская одежда"],
+      "pose": "поспешно идет следом",
+      "action": "старается не отставать",
+      "position_in_frame": "позади справа",
+      "emotion": "усталость, тревога"
+    }
+  ],
+  "props": [
+    { "name": "ПАЛЬТО", "required": true, "owner": "КАЙРАНСКИЙ" },
+    { "name": "ХАЛАТ", "required": true, "owner": "КАЙРАНСКИЙ" },
+    { "name": "МАРЛЕВАЯ МАСКА", "required": true, "owner": "КАЙРАНСКИЙ" },
+    { "name": "ПАПИРОСА", "required": true, "owner": "КАЙРАНСКИЙ" }
+  ],
+  "camera": {
+    "shot_type": "medium full-body shot",
+    "angle": "eye level",
+    "framing": "профессор на переднем плане, двое позади",
+    "motion": "ощущение движения, легкий motion blur"
+  },
+  "lighting": {
+    "type": "dim indoor fluorescent",
+    "description": "тусклый холодный свет школьных ламп, усиливающий напряжение"
+  },
+  "mood": [
+    "tense",
+    "urgent"
+  ],
+  "style_hints": [
+    "cinematic",
+    "gritty realism",
+    "medical drama"
+  ],
+  "text_excerpt": "По длинному школьному коридору, торопясь..."
+}
+
+Enhancer из исходного JSON + text_excerpt будет достраивать эти поля.

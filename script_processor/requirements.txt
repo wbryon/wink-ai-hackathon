@@ -1,0 +1,6 @@
+fastapi==0.115.0
+uvicorn==0.30.0
+pdfplumber==0.11.0
+transformers==4.44.0
+python-docx==0.8.11
+python-multipart==0.0.9

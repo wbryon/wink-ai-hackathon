@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import UploadScene from '../components/UploadScene';
 import SceneList from '../components/SceneList';
 import FrameViewer from '../components/FrameViewer';
 import { mockScenes, mockScriptData } from '../utils/mockData';
+import { Settings } from 'lucide-react';
 
 const STEPS = {
   UPLOAD: 'upload',
@@ -11,10 +13,10 @@ const STEPS = {
 };
 
 const MainPage = () => {
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(STEPS.UPLOAD);
   const [scriptData, setScriptData] = useState(null);
   const [scenes, setScenes] = useState([]);
-  const [showDevMenu, setShowDevMenu] = useState(true); // Dev menu для демо
 
   // Обработка успешной загрузки сценария
   const handleUploadSuccess = (data) => {
@@ -57,90 +59,98 @@ const MainPage = () => {
     }
   };
 
-  // Dev функции для быстрой навигации
-  const loadMockData = () => {
-    setScriptData(mockScriptData);
-    setScenes(mockScenes);
-  };
+  // Навигация по шагам
+  const canGoToReview = !!scriptData && scenes.length > 0;
+  const canGoToGenerate = !!scriptData && scenes.length > 0;
 
   const goToUpload = () => setCurrentStep(STEPS.UPLOAD);
-  
   const goToReview = () => {
-    if (!scenes.length) loadMockData();
+    if (!canGoToReview) return;
     setCurrentStep(STEPS.REVIEW);
   };
-
   const goToGenerate = () => {
-    if (!scenes.length) loadMockData();
+    if (!canGoToGenerate) return;
     setCurrentStep(STEPS.GENERATE);
   };
 
+  // При монтировании страницы — отключаем автоматическое восстановление скролла
+  // и принудительно прокручиваем страницу наверх, чтобы избежать накопления смещения
+  useEffect(() => {
+    try {
+      if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+    } catch (e) {
+      // ignore (SSR or restricted env)
+    }
+    window.scrollTo(0, 0);
+  }, []);
+
   return (
     <div className="min-h-screen bg-wink-black text-white">
-      {/* Dev Menu для быстрой навигации */}
-      {showDevMenu && (
-        <div className="fixed top-4 right-4 z-50 bg-wink-dark border-2 border-wink-orange rounded-lg p-4 shadow-2xl">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-bold text-wink-orange">🔧 DEV МЕНЮ</span>
-            <button
-              onClick={() => setShowDevMenu(false)}
-              className="text-gray-400 hover:text-white"
-            >
-              ✕
-            </button>
+      {/* Верхняя навигация по шагам */}
+      <header className="border-b border-wink-gray bg-wink-dark/80 sticky top-0 z-40 backdrop-blur">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img
+              src="/images/wink-logo.webp"
+              alt="Wink"
+              className="h-8 filter brightness-0 invert"
+            />
+            <div>
+              <div className="text-sm uppercase tracking-widest text-gray-400">
+                Wink PreViz
+              </div>
+              <div className="text-lg font-cofo-black text-gradient-wink">
+                Storyboard Studio
+              </div>
+            </div>
           </div>
-          <div className="space-y-2">
+
+          <div className="flex items-center gap-4">
+            <nav className="flex items-center gap-2 text-xs md:text-sm">
             <button
               onClick={goToUpload}
-              className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                currentStep === STEPS.UPLOAD 
-                  ? 'bg-wink-orange text-black font-bold' 
-                  : 'bg-wink-gray hover:bg-wink-orange hover:text-black'
+              className={`px-3 py-2 rounded-lg border transition-all ${
+                currentStep === STEPS.UPLOAD
+                  ? 'border-wink-orange bg-wink-orange text-black font-bold'
+                  : 'border-transparent bg-wink-black hover:border-wink-orange/60'
               }`}
             >
-              📄 Экран 1: Загрузка
+              1. Загрузка
             </button>
             <button
               onClick={goToReview}
-              className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                currentStep === STEPS.REVIEW 
-                  ? 'bg-wink-orange text-black font-bold' 
-                  : 'bg-wink-gray hover:bg-wink-orange hover:text-black'
-              }`}
+              disabled={!canGoToReview}
+              className={`px-3 py-2 rounded-lg border transition-all ${
+                currentStep === STEPS.REVIEW
+                  ? 'border-wink-orange bg-wink-orange text-black font-bold'
+                  : 'border-transparent bg-wink-black hover:border-wink-orange/60'
+              } ${!canGoToReview ? 'opacity-40 cursor-not-allowed' : ''}`}
             >
-              🎬 Экран 2: Редактирование
+              2. Сцены
             </button>
             <button
               onClick={goToGenerate}
-              className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                currentStep === STEPS.GENERATE 
-                  ? 'bg-wink-orange text-black font-bold' 
-                  : 'bg-wink-gray hover:bg-wink-orange hover:text-black'
-              }`}
+              disabled={!canGoToGenerate}
+              className={`px-3 py-2 rounded-lg border transition-all ${
+                currentStep === STEPS.GENERATE
+                  ? 'border-wink-orange bg-wink-orange text-black font-bold'
+                  : 'border-transparent bg-wink-black hover:border-wink-orange/60'
+              } ${!canGoToGenerate ? 'opacity-40 cursor-not-allowed' : ''}`}
             >
-              🎨 Экран 3: Генерация
+              3. Кадры
             </button>
-          </div>
-          <div className="mt-3 pt-3 border-t border-wink-gray">
-            <button
-              onClick={loadMockData}
-              className="w-full px-3 py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-bold transition-colors"
-            >
-              💾 Загрузить тестовые данные
-            </button>
+          </nav>
+          
+          <button
+            onClick={() => navigate('/settings')}
+            className="p-2 hover:bg-wink-gray rounded-lg transition-colors"
+            title="Настройки"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
           </div>
         </div>
-      )}
-
-      {/* Кнопка для показа меню если оно скрыто */}
-      {!showDevMenu && (
-        <button
-          onClick={() => setShowDevMenu(true)}
-          className="fixed top-4 right-4 z-50 bg-wink-orange text-black px-4 py-2 rounded-lg font-bold shadow-lg hover:scale-105 transition-transform"
-        >
-          🔧 DEV
-        </button>
-      )}
+      </header>
 
       {renderStep()}
     </div>

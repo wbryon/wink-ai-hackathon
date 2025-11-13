@@ -1,0 +1,13 @@
+# FastAPI and web server
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+
+# Image processing (для работы с изображениями при сохранении)
+Pillow>=10.0.0
+
+# HTTP client для работы с ComfyUI API
+requests>=2.31.0
+
+# Note: PyTorch, diffusers, transformers НЕ нужны - вся генерация выполняется в ComfyUI
+

@@ -67,6 +67,11 @@ public class Scene {
     @Column(length = 128)
     private String style;
 
+    /** Исходный JSON сцены от парсера (для использования в pipeline обогащения) */
+    @Lob
+    @Column(columnDefinition = "text")
+    private String originalJson;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private SceneStatus status = SceneStatus.PARSED;
@@ -102,6 +107,8 @@ public class Scene {
     public void setTone(String tone) { this.tone = tone; }
     public String getStyle() { return style; }
     public void setStyle(String style) { this.style = style; }
+    public String getOriginalJson() { return originalJson; }
+    public void setOriginalJson(String originalJson) { this.originalJson = originalJson; }
     public SceneStatus getStatus() { return status; }
     public void setStatus(SceneStatus status) { this.status = status; }
     public Instant getCreatedAt() { return createdAt; }

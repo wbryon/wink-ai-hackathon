@@ -12,6 +12,7 @@ public class ScriptUploadResponse {
     private String filename;
     private String status;
     private List<SceneDto> scenes = new ArrayList<>();
+    private List<String> chunkFiles = new ArrayList<>();
 
     // --- getters/setters ---
     public String getScriptId() { return scriptId; }
@@ -25,4 +26,7 @@ public class ScriptUploadResponse {
 
     public List<SceneDto> getScenes() { return scenes; }
     public void setScenes(List<SceneDto> scenes) { this.scenes = scenes; }
+
+    public List<String> getChunkFiles() { return chunkFiles; }
+    public void setChunkFiles(List<String> chunkFiles) { this.chunkFiles = chunkFiles; }
 }

@@ -7,13 +7,14 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import ru.wink.winkaipreviz.dto.AddSceneRequest;
 import ru.wink.winkaipreviz.dto.SceneDto;
 import ru.wink.winkaipreviz.dto.ScriptUploadResponse;
 import ru.wink.winkaipreviz.service.PrevizService;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
+import org.springframework.http.HttpStatus;
 
 @RestController
 @RequestMapping("/api/scripts")
@@ -26,8 +27,25 @@ public class ScriptController {
     }
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ScriptUploadResponse upload(@RequestParam("file") MultipartFile file) throws Exception {
-        return service.createScriptFromUpload(file);
+    public ResponseEntity<?> upload(@RequestParam("file") MultipartFile file) {
+        try {
+            ScriptUploadResponse response = service.createScriptFromUpload(file);
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            // Валидация не прошла
+            return ResponseEntity.badRequest()
+                    .body(Map.of(
+                            "error", "Bad Request",
+                            "message", e.getMessage()
+                    ));
+        } catch (Exception e) {
+            // Другие ошибки
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of(
+                            "error", "Internal Server Error",
+                            "message", "Ошибка при обработке файла: " + e.getMessage()
+                    ));
+        }
     }
 
     @GetMapping("/{scriptId}/scenes")
