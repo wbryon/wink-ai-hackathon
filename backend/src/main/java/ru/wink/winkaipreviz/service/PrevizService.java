@@ -464,7 +464,18 @@ public class PrevizService {
 		frame.setDetailLevel(level);
 		frame.setGenerationPath(path);
 		frame.setPrompt(prompt);
-		frame.setSeed(ai != null ? ai.seed() : (req.getSeed() != null ? req.getSeed() : (int)(System.currentTimeMillis() % Integer.MAX_VALUE)));
+
+		// Безопасно определяем seed: если AI не вернул seed, используем seed из запроса или fallback
+		Integer effectiveSeed;
+		if (ai != null && ai.seed() != null) {
+			effectiveSeed = ai.seed();
+		} else if (req.getSeed() != null) {
+			effectiveSeed = req.getSeed();
+		} else {
+			effectiveSeed = (int) (System.currentTimeMillis() % Integer.MAX_VALUE);
+		}
+		frame.setSeed(effectiveSeed);
+
 		frame.setModel(ai != null ? ai.model() : (req.getModel() != null ? req.getModel() : "unknown"));
 		frame.setImageUrl(ai != null ? ai.imageUrl() : ("http://localhost:8000/mock_" + lodProfile.getCode() + ".png"));
 		frame.setGenerationMs(generationTime);
