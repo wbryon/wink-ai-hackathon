@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   ChevronDown, 
   ChevronUp, 
@@ -11,7 +11,8 @@ import {
   Save,
   X
 } from 'lucide-react';
-import { updateScene, deleteScene, addScene, generateFrame, refineScene } from '../api/apiClient';
+import { updateScene, deleteScene, addScene, generateFrame, refineScene, enrichScene, getScenes } from '../api/apiClient';
+import { Sparkles } from 'lucide-react';
 
 const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
   const [scenes, setScenes] = useState(initialScenes || []);
@@ -21,6 +22,38 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
   const [generating, setGenerating] = useState({}); // per-scene loading flags
   const [refineText, setRefineText] = useState({}); // per-scene quick edit text
   const [refining, setRefining] = useState({}); // per-scene refine loading
+  const [enriching, setEnriching] = useState({}); // per-scene enrichment loading
+  const [showSceneText, setShowSceneText] = useState({}); // per-scene text visibility
+  const [scenesLoading, setScenesLoading] = useState(false);
+
+  // Загрузить сцены из API, если они не переданы или пустые
+  useEffect(() => {
+    const loadScenes = async () => {
+      if (!scriptId) return;
+      
+      // Если сцены уже переданы и не пустые, не загружаем повторно
+      if (initialScenes && initialScenes.length > 0) {
+        return;
+      }
+      
+      // Если сцены пустые, загружаем из API
+      if (scenes.length === 0) {
+        setScenesLoading(true);
+        try {
+          const loadedScenes = await getScenes(scriptId);
+          if (loadedScenes && loadedScenes.length > 0) {
+            setScenes(loadedScenes);
+          }
+        } catch (error) {
+          console.error('Error loading scenes:', error);
+        } finally {
+          setScenesLoading(false);
+        }
+      }
+    };
+
+    loadScenes();
+  }, [scriptId, initialScenes, scenes.length]);
 
   // Переключение раскрытия сцены
   const toggleScene = (index) => {
@@ -150,6 +183,24 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
     }
   };
 
+  // Запуск пайплайна обогащения сцены
+  const handleEnrichScene = async (sceneId, index) => {
+    try {
+      setEnriching(prev => ({ ...prev, [index]: true }));
+      const result = await enrichScene(sceneId);
+      if (result.success) {
+        alert('Пайплайн обогащения успешно завершен! Enriched JSON и prompt готовы для генерации.');
+      } else {
+        alert('Ошибка при запуске пайплайна обогащения: ' + (result.error || 'Неизвестная ошибка'));
+      }
+    } catch (error) {
+      console.error('Error enriching scene:', error);
+      alert('Ошибка при запуске пайплайна обогащения. Попробуйте ещё раз.');
+    } finally {
+      setEnriching(prev => ({ ...prev, [index]: false }));
+    }
+  };
+
   return (
     <div className="min-h-screen p-6 animate-fadeInUp">
       <div className="max-w-6xl mx-auto">
@@ -169,8 +220,23 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
         </div>
 
         {/* Список сцен */}
-        <div className="space-y-4 mb-6">
-          {scenes.map((scene, index) => {
+        {scenesLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-wink-orange mx-auto mb-4"></div>
+              <p className="text-gray-400">Загрузка сцен...</p>
+            </div>
+          </div>
+        ) : scenes.length === 0 ? (
+          <div className="text-center py-12 text-gray-400">
+            <p className="text-lg mb-2">Сцены не найдены</p>
+            {scriptId && (
+              <p className="text-sm">Проверьте, что сценарий обработан</p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4 mb-6">
+            {scenes.map((scene, index) => {
             const isExpanded = expandedScenes.has(index);
             const isEditing = editingScene === index;
 
@@ -384,16 +450,50 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
                           </div>
                         )}
 
+                        {/* Текст сцены */}
                         {scene.description && (
-                          <div className="mt-3 p-4 bg-wink-black/50 rounded-lg">
-                            <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">
-                              {scene.description}
-                            </p>
+                          <div className="mt-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="block text-sm font-bold text-gray-400">
+                                Текст сцены
+                              </label>
+                              <button
+                                onClick={() => setShowSceneText(prev => ({
+                                  ...prev,
+                                  [index]: !prev[index]
+                                }))}
+                                className="text-xs text-wink-orange hover:text-wink-orange/80 transition-colors"
+                              >
+                                {showSceneText[index] ? 'Скрыть' : 'Показать'}
+                              </button>
+                            </div>
+                            {showSceneText[index] && (
+                              <div className="p-4 bg-wink-black/50 rounded-lg max-h-96 overflow-y-auto">
+                                <pre className="text-gray-300 leading-relaxed whitespace-pre-wrap font-mono text-xs">
+                                  {scene.description}
+                                </pre>
+                              </div>
+                            )}
                           </div>
                         )}
 
                         {/* Быстрые действия по сцене */}
                         <div className="pt-4 space-y-3">
+                          {/* Запуск пайплайна обогащения */}
+                          <div>
+                            <button
+                              onClick={() => handleEnrichScene(scene.id, index)}
+                              disabled={!!enriching[index]}
+                              className="w-full btn-wink flex items-center justify-center gap-2"
+                            >
+                              <Sparkles className="w-4 h-4" />
+                              {enriching[index] ? 'Запуск пайплайна...' : 'Запустить пайплайн обогащения'}
+                            </button>
+                            <p className="text-xs text-gray-500 mt-1 text-center">
+                              scene text → ollama → json → ollama → enriched json → ollama → prompt
+                            </p>
+                          </div>
+
                           {/* Быстрая текстовая правка */}
                           <div>
                             <label className="block text-xs font-bold mb-1 text-gray-400">
@@ -436,7 +536,8 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
               </div>
             );
           })}
-        </div>
+          </div>
+        )}
 
         {/* Кнопки действий */}
         <div className="flex gap-4 justify-center">

@@ -56,26 +56,37 @@ public class SceneGenerationService {
                 script.setStatus(ScriptStatus.PARSING);
                 scriptRepository.save(script);
 
-                // 1️⃣ Получаем чанки через script-processor
+                // 1️⃣ Получаем сцены напрямую через script-processor
                 java.nio.file.Path path = java.nio.file.Path.of(script.getFilePath());
-                List<String> chunks = scriptProcessorClient.splitToChunkTexts(path);
-                if (chunks != null && !chunks.isEmpty()) {
-                    script.setTextExtracted(String.join("\n\n", chunks));
-                }
-
-                // 2️⃣ Парсинг сцен AI по чанкам
+                List<ScriptProcessorClient.SceneData> sceneDataList = scriptProcessorClient.splitToScenes(path);
+                
+                // 2️⃣ Создаём Scene объекты из данных script-processor
                 List<Scene> parsedScenes = new java.util.ArrayList<>();
-                for (String chunk : chunks) {
-                    List<Scene> part = parserClient.parseScenes(chunk);
-                    if (part != null && !part.isEmpty()) parsedScenes.addAll(part);
-                }
-                for (Scene scene : parsedScenes) {
+                StringBuilder allText = new StringBuilder();
+                
+                for (ScriptProcessorClient.SceneData sceneData : sceneDataList) {
+                    Scene scene = new Scene();
                     scene.setScript(script);
+                    scene.setTitle(sceneData.slugline());
+                    scene.setLocation(sceneData.place());
+                    scene.setDescription(sceneData.text());
                     scene.setStatus(SceneStatus.PARSED);
+                    parsedScenes.add(scene);
+                    
+                    if (allText.length() > 0) {
+                        allText.append("\n\n");
+                    }
+                    allText.append(sceneData.text());
                 }
+                
                 sceneRepository.saveAll(parsedScenes);
-                // сохраняем только извлечённый текст
-                script.setStatus(ScriptStatus.PARSED);
+                
+                // Сохраняем извлечённый текст
+                if (allText.length() > 0) {
+                    script.setTextExtracted(allText.toString());
+                }
+                
+                script.setStatus(parsedScenes.isEmpty() ? ScriptStatus.FAILED : ScriptStatus.PARSED);
                 scriptRepository.save(script);
 
                 // 3️Генерация изображений по запросу пользователя

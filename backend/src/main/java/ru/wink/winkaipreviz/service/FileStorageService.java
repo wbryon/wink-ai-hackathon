@@ -48,10 +48,10 @@ public class FileStorageService {
 		String originalName = StringUtils.cleanPath(file.getOriginalFilename() == null ? "file" : file.getOriginalFilename());
 		String targetName = Instant.now().toEpochMilli() + "_" + originalName;
 
-		// Храним исходный DOCX/PDF только во временной директории ОС,
-		// чтобы он не попадал в постоянный каталог /data/uploads на хосте.
-		Path tempDir = Files.createTempDirectory("wink-previz-upload-");
-		Path target = tempDir.resolve(targetName);
+		// Сохраняем файлы в постоянную директорию /data/uploads
+		Path uploadDir = Path.of(props.getUploadDir());
+		Files.createDirectories(uploadDir);
+		Path target = uploadDir.resolve(targetName);
 
 		Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
 		return target.toString();

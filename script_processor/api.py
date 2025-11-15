@@ -23,7 +23,6 @@ import logging
 from pdf_utils import extract_text as extract_pdf_text
 from docx_utils import extract_text as extract_docx_text, extract_script_structure
 from scene_splitter import split_scenes
-from token_chunker import get_tokenizer, chunk_scenes
 try:
     from docx_scene_parser import parse_docx_to_scenes as parse_docx_by_indent
 except Exception:
@@ -52,9 +51,9 @@ def ensure_blank_line_before_sluglines(text: str) -> str:
 
 # --- Инициализация приложения ---
 app = FastAPI(
-    title="Script Chunking API",
-    description="API для разбиения сценариев (PDF/DOCX) на сцены и чанки по токенам.",
-    version="1.4.1",
+    title="Script Scene Parser API",
+    description="API для разбиения сценариев (PDF/DOCX) на отдельные сцены.",
+    version="2.0.0",
 )
 
 BASE_CHUNKS_DIR = "chunks"
@@ -70,8 +69,8 @@ async def split_script(
 ):
     """
     Принимает PDF или DOCX, извлекает текст или структуру,
-    делит на сцены и чанки по токенам.
-    Для каждого вызова создаётся уникальная подпапка в 'chunks/'.
+    делит на отдельные сцены (без чанкинга по токенам).
+    Возвращает список сцен с их текстом и метаданными.
     После обработки временный файл удаляется.
     """
     start_time = time.time()
@@ -157,18 +156,15 @@ async def split_script(
 
         logger.info("Scenes extracted: %d", len(scenes))
 
-        # --- Загружаем токенайзер ---
-        tokenizer = get_tokenizer(model)
-
         # --- Формируем текстовые представления сцен ---
-        scene_texts = []
+        response_scenes = []
         def cm_to_spaces(cm: float, factor: float = 4.0) -> int:
             try:
                 return max(0, int(round((cm or 0.0) * factor)))
             except Exception:
                 return 0
 
-        for scene in scenes:
+        for idx, scene in enumerate(scenes):
             slug = scene.get("slugline") or "UNKNOWN"
             block_texts = []
             for b in scene.get("blocks", []):
@@ -200,47 +196,31 @@ async def split_script(
                             block_texts.append(text)
             # Без префикса: начинаем сцену сразу с слаглайна, затем пустая строка
             full_scene_text = slug + "\n\n" + "\n".join(t for t in block_texts if t) + "\n"
-            scene_texts.append(full_scene_text)
-        if scene_texts:
-            logger.debug("First scene sample:\n%s", scene_texts[0][:400])
-
-        # --- Формируем чанки ---
-        chunks = chunk_scenes(scene_texts, tokenizer)
-        logger.info("Chunks created: %d", len(chunks))
-
-        # --- Сохраняем чанки ---
-        saved_files = []
-        response_chunks = []
-        for chunk in chunks:
-            filename = f"chunk_{chunk['chunk_index']:03d}.txt"
-            file_path = os.path.join(session_dir, filename)
-
-            # ✅ финальная нормализация: добавляем пустую строку перед каждым новым слаглайном
-            normalized_text = ensure_blank_line_before_sluglines(chunk["text"])
-
-            # на Windows можно зафиксировать перевод строк:
-            with open(file_path, "w", encoding="utf-8", newline="\n") as f:
-                f.write(normalized_text)
-
-            saved_files.append(file_path)
-            response_chunks.append({
-                "chunk_index": chunk["chunk_index"],
-                "token_count": chunk["token_count"],
-                "text": normalized_text
+            
+            # Извлекаем метаданные из сцены
+            place = scene.get("place")
+            time_of_day = scene.get("time")
+            
+            response_scenes.append({
+                "scene_index": idx + 1,
+                "slugline": slug,
+                "place": place,
+                "time": time_of_day,
+                "text": full_scene_text
             })
+        
+        if response_scenes:
+            logger.debug("First scene sample:\n%s", response_scenes[0]["text"][:400])
 
         elapsed = round(time.time() - start_time, 2)
-        logger.info("Processing finished: %d chunks in %s seconds", len(chunks), elapsed)
+        logger.info("Processing finished: %d scenes in %s seconds", len(response_scenes), elapsed)
 
         return JSONResponse({
             "filename": file.filename,
             "model": model,
-            "total_scenes": len(scenes),
-            "total_chunks": len(chunks),
+            "total_scenes": len(response_scenes),
             "processing_time_sec": elapsed,
-            "chunks_dir": os.path.abspath(session_dir),
-            "saved_files": saved_files,
-            "chunks": response_chunks
+            "scenes": response_scenes
         })
 
     except HTTPException:

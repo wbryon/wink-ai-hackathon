@@ -1,6 +1,9 @@
 spring:
   application:
     name: wink-ai-previz
+  web:
+    resources:
+      add-mappings: false  # Отключаем обработку статических ресурсов Spring Boot
   servlet:
     multipart:
       max-file-size: 50MB

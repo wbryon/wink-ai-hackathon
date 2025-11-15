@@ -117,4 +117,24 @@ public class SceneController {
         java.util.UUID id = java.util.UUID.fromString(sceneId);
         return sceneVisualService.updateSlotsForScene(id, slots, updateScene);
     }
+    
+    /**
+     * Запустить пайплайн обогащения сцены:
+     * scene text -> ollama -> json -> ollama -> enriched json -> ollama -> text prompt
+     * 
+     * @param sceneId ID сцены
+     * @return результат пайплайна с enriched JSON и prompt
+     */
+    @PostMapping("/scenes/{sceneId}/enrich")
+    public Map<String, Object> enrichScene(@PathVariable String sceneId) throws Exception {
+        java.util.UUID id = java.util.UUID.fromString(sceneId);
+        ru.wink.winkaipreviz.service.SceneToFluxPromptService.FluxPromptResult result = 
+                service.enrichScenePipeline(id);
+        return Map.of(
+                "success", true,
+                "sceneId", result.sceneId() != null ? result.sceneId() : sceneId,
+                "enrichedJson", result.enrichedJson(),
+                "prompt", result.prompt()
+        );
+    }
 }

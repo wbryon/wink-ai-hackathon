@@ -156,6 +156,48 @@ CHUNK TEXT (RUSSIAN SCREENPLAY):
     }
 
     /**
+     * Парсит текст одной сцены в base scene JSON.
+     * Используется для пайплайна обогащения: scene text -> JSON -> enriched JSON -> prompt.
+     */
+    public String parseSceneTextToJson(String sceneText) throws Exception {
+        // Используем тот же промпт, но ожидаем один объект сцены, а не массив
+        String prompt = SCENE_PARSER_PROMPT_TEMPLATE
+                .replace("{{CHUNK_TEXT_HERE}}", sceneText)
+                + "\n\nIMPORTANT: Since this is a single scene (not a chunk), return an array with exactly ONE scene object.";
+
+        String raw = ollamaClient.generateJson(prompt).block();
+
+        if (raw == null) {
+            log.warn("LLM returned null response for scene text");
+            throw new IllegalStateException("Failed to parse scene text to JSON");
+        }
+
+        raw = cleanModelOutput(raw);
+        if (raw.isBlank()) {
+            throw new IllegalStateException("LLM returned empty response for scene text");
+        }
+
+        // Извлекаем JSON массив
+        String candidate = raw.trim();
+        int start = candidate.indexOf('[');
+        int end = candidate.lastIndexOf(']');
+
+        if (start == -1 || end == -1 || end <= start) {
+            throw new IllegalStateException("LLM did not return a JSON array");
+        }
+
+        candidate = candidate.substring(start, end + 1).trim();
+
+        JsonNode root = mapper.readTree(candidate);
+        if (!root.isArray() || root.size() == 0) {
+            throw new IllegalStateException("LLM did not return an array with at least one scene");
+        }
+
+        // Возвращаем первый элемент массива как JSON строку
+        return mapper.writeValueAsString(root.get(0));
+    }
+
+    /**
      * Парсит один чанк сценария в СПИСОК base scene JSON (по одной строке на сцену).
      * Эти строки дальше можно сразу отдавать в Enricher.
      */

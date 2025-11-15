@@ -301,6 +301,19 @@ export const refineScene = async (sceneId, instruction) => {
 };
 
 /**
+ * Запуск пайплайна обогащения сцены:
+ * scene text -> ollama -> json -> ollama -> enriched json -> ollama -> text prompt
+ * @param {string} sceneId - ID сцены
+ * @returns {Promise} - результат пайплайна с enriched JSON и prompt
+ */
+export const enrichScene = async (sceneId) => {
+  return maybeFallback(
+    async () => (await apiClient.post(`/scenes/${sceneId}/enrich`)).data,
+    async () => ({ success: false, error: 'Mock not implemented' })
+  );
+};
+
+/**
  * Загрузка workflow файла на сервер
  * @param {string} type - Тип workflow ('text2img' или 'img2img')
  * @param {File|Blob} file - Файл workflow (JSON)

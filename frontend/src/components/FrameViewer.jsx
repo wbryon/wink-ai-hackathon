@@ -34,6 +34,7 @@ import {
   getSceneVisual,
   getSlots,
   updateSlots,
+  getScenes,
 } from '../api/apiClient';
 import PromptSlotsEditor from './PromptSlotsEditor';
 
@@ -63,8 +64,38 @@ const FrameViewer = ({ scenes: initialScenes, scriptId }) => {
   const [galleryLodFilter, setGalleryLodFilter] = useState('all');
   const [editingSlots, setEditingSlots] = useState(false);
   const [previewPrompt, setPreviewPrompt] = useState('');
+  const [scenesLoading, setScenesLoading] = useState(false);
 
   const currentScene = scenes[currentSceneIndex];
+
+  // Загрузить сцены из API, если они не переданы или пустые
+  useEffect(() => {
+    const loadScenes = async () => {
+      if (!scriptId) return;
+      
+      // Если сцены уже переданы и не пустые, не загружаем повторно
+      if (initialScenes && initialScenes.length > 0) {
+        return;
+      }
+      
+      // Если сцены пустые, загружаем из API
+      if (scenes.length === 0) {
+        setScenesLoading(true);
+        try {
+          const loadedScenes = await getScenes(scriptId);
+          if (loadedScenes && loadedScenes.length > 0) {
+            setScenes(loadedScenes);
+          }
+        } catch (error) {
+          console.error('Error loading scenes:', error);
+        } finally {
+          setScenesLoading(false);
+        }
+      }
+    };
+
+    loadScenes();
+  }, [scriptId, initialScenes, scenes.length]);
 
   // Проверяем наличие Sketch кадра для текущей сцены
   const hasSketchFrame = () => {
@@ -446,10 +477,26 @@ const FrameViewer = ({ scenes: initialScenes, scriptId }) => {
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
               <FileImage className="w-5 h-5 text-wink-orange" />
               Сцены ({scenes.length})
+              {scenesLoading && (
+                <Loader2 className="w-4 h-4 animate-spin text-wink-orange" />
+              )}
             </h2>
 
-            <div className="space-y-2">
-              {scenes.map((scene, index) => (
+            {scenesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-wink-orange" />
+                <span className="ml-2 text-gray-400">Загрузка сцен...</span>
+              </div>
+            ) : scenes.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                <p>Сцены не найдены</p>
+                {scriptId && (
+                  <p className="text-xs mt-2">Проверьте, что сценарий обработан</p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {scenes.map((scene, index) => (
                 <button
                   key={scene.id || index}
                   onClick={() => setCurrentSceneIndex(index)}
@@ -513,8 +560,9 @@ const FrameViewer = ({ scenes: initialScenes, scriptId }) => {
                     )}
                   </div>
                 </button>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </aside>
 

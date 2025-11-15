@@ -128,65 +128,58 @@ public class PrevizService {
 			script.setStatus(ScriptStatus.PARSING);
 			scriptRepository.save(script);
 
-		// 3) Делегируем извлечение текста и чанкирование в script-processor
-			List<String> chunks;
-			List<String> chunkFilesOnDisk = List.of();
+		// 3) Получаем сцены напрямую из script-processor
+			List<ScriptProcessorClient.SceneData> sceneDataList;
 			try {
-				log.info("(background) Requesting chunks from script-processor for scriptId={}", script.getId());
-				chunks = scriptProcessorClient.splitToChunkTexts(java.nio.file.Path.of(script.getFilePath()));
-				log.info("(background) Received {} chunks from script-processor for scriptId={}", chunks.size(), script.getId());
-				chunkFilesOnDisk = fileStorageService.saveChunks(script.getId(), chunks);
-			log.info("(background) Chunks saved to {}", chunkFilesOnDisk);
+				log.info("(background) Requesting scenes from script-processor for scriptId={}", script.getId());
+				sceneDataList = scriptProcessorClient.splitToScenes(java.nio.file.Path.of(script.getFilePath()));
+				log.info("(background) Received {} scenes from script-processor for scriptId={}", sceneDataList.size(), script.getId());
 			} catch (Exception ex) {
-				log.error("(background) Chunking failed in script-processor for scriptId={}: {}", script.getId(), ex.getMessage(), ex);
+				log.error("(background) Scene extraction failed in script-processor for scriptId={}: {}", script.getId(), ex.getMessage(), ex);
 				script.setStatus(ScriptStatus.FAILED);
 				scriptRepository.save(script);
 				return;
 			}
 
-		// 4) Парсим сцены через Ollama по каждому чанку
+		// 4) Создаём Scene объекты из данных script-processor
 		List<Scene> parsedScenes = new ArrayList<>();
-		for (String chunk : chunks) {
+		StringBuilder allText = new StringBuilder();
+		
+		for (ScriptProcessorClient.SceneData sceneData : sceneDataList) {
 			try {
-				List<Scene> part = ollamaScriptParserService.parseChunk(chunk);
-				if (part != null && !part.isEmpty()) {
-					parsedScenes.addAll(part);
-				} else {
-					log.warn("(background) Ollama parser returned no scenes for chunk preview='{}'",
-							chunk == null ? "null" : chunk.substring(0, Math.min(200, chunk.length())).replaceAll("\n", " "));
+				Scene scene = new Scene();
+				scene.setScript(script);
+				scene.setTitle(sceneData.slugline());
+				scene.setLocation(sceneData.place());
+				scene.setDescription(sceneData.text()); // Сохраняем полный текст сцены
+				scene.setStatus(SceneStatus.PARSED);
+				
+				parsedScenes.add(scene);
+				
+				if (allText.length() > 0) {
+					allText.append("\n\n");
 				}
+				allText.append(sceneData.text());
 			} catch (Exception ex) {
-				log.error("(background) Ollama parser failed for scriptId={} chunk: {}", script.getId(), ex.getMessage(), ex);
+				log.error("(background) Failed to create scene from sceneData for scriptId={}: {}", script.getId(), ex.getMessage(), ex);
 			}
 		}
-		log.info("(background) Ollama parser produced {} scenes for scriptId={}", parsedScenes.size(), script.getId());
-			for (Scene scene : parsedScenes) {
-				scene.setScript(script);
-			}
-			sceneRepository.saveAll(parsedScenes);
+		
+		log.info("(background) Created {} scenes for scriptId={}", parsedScenes.size(), script.getId());
+		sceneRepository.saveAll(parsedScenes);
 
-		// 5) Сохраняем извлечённый текст (как конкатенацию чанков)
-		String joinedText = String.join("\n\n", chunks);
-		if (!joinedText.isBlank()) {
-			script.setTextExtracted(joinedText);
+		// 5) Сохраняем извлечённый текст (как конкатенацию сцен)
+		if (allText.length() > 0) {
+			script.setTextExtracted(allText.toString());
 		}
 
 			// 6) Обновляем статус
-			script.setStatus(parsedScenes.isEmpty() ? ScriptStatus.FAILED /* или PARSED_EMPTY, если добавите в enum */ : ScriptStatus.PARSED);
+			script.setStatus(parsedScenes.isEmpty() ? ScriptStatus.FAILED : ScriptStatus.PARSED);
 			scriptRepository.save(script);
 			log.info("(background) Script {} status updated to {}", script.getId(), script.getStatus());
 		} finally {
-			// В любом случае после обработки удаляем исходный DOCX/PDF файл,
-			// чтобы он не хранился на сервере.
-			try {
-				Script script = scriptRepository.findById(scriptId)
-						.orElse(null);
-				if (script != null) {
-					fileStorageService.deleteUploadedFileQuietly(script.getFilePath());
-				}
-			} catch (Exception ignored) {
-				// игнорируем ошибки при удалении — отсутствие файла не критично
-			}
+			// Файлы сохраняются в /data/uploads и не удаляются после обработки
+			// для возможности повторной обработки или отладки
 		}
 	}
 
@@ -815,6 +808,62 @@ public class PrevizService {
 		);
 	}
 	
+	/**
+	 * Полный пайплайн обогащения сцены:
+	 * scene text -> ollama -> json -> ollama -> enriched json -> ollama -> text prompt
+	 * 
+	 * @param sceneId ID сцены
+	 * @return результат пайплайна с enriched JSON и prompt
+	 */
+	@Transactional
+	public SceneToFluxPromptService.FluxPromptResult enrichScenePipeline(UUID sceneId) throws Exception {
+		Scene scene = sceneRepository.findById(sceneId)
+				.orElseThrow(() -> new IllegalArgumentException("Scene not found: " + sceneId));
+		
+		// Шаг 1: Получаем текст сцены
+		String sceneText = scene.getDescription();
+		if (sceneText == null || sceneText.isBlank()) {
+			throw new IllegalStateException("Scene text is empty for sceneId=" + sceneId);
+		}
+		
+		log.info("Starting enrichment pipeline for sceneId={}", sceneId);
+		
+		// Шаг 2: Парсим текст сцены в JSON через Ollama
+		String baseJson;
+		if (scene.getOriginalJson() != null && !scene.getOriginalJson().isBlank()) {
+			// Используем сохраненный JSON, если есть
+			baseJson = scene.getOriginalJson();
+			log.info("Using cached base JSON for sceneId={}", sceneId);
+		} else {
+			// Парсим текст сцены в JSON
+			baseJson = ollamaScriptParserService.parseSceneTextToJson(sceneText);
+			// Сохраняем base JSON в сцену
+			scene.setOriginalJson(baseJson);
+			sceneRepository.save(scene);
+			log.info("Parsed scene text to JSON for sceneId={}", sceneId);
+		}
+		
+		// Шаг 3: Обогащаем JSON и генерируем prompt
+		SceneToFluxPromptService.FluxPromptResult result = 
+				sceneToFluxPromptService.generateFromSceneJson(baseJson);
+		
+		// Шаг 4: Сохраняем enriched JSON и prompt в SceneVisualEntity
+		SceneVisualEntity visual = sceneVisualRepository.findBySceneId(sceneId)
+				.orElseGet(() -> {
+					SceneVisualEntity newVisual = new SceneVisualEntity();
+					newVisual.setSceneId(sceneId);
+					return newVisual;
+				});
+		
+		visual.setEnrichedJson(result.enrichedJson());
+		visual.setFluxPrompt(result.prompt());
+		visual.setStatus(VisualStatus.PROMPT_READY);
+		sceneVisualRepository.save(visual);
+		
+		log.info("Enrichment pipeline completed for sceneId={}", sceneId);
+		return result;
+	}
+
 	/**
 	 * Получает base JSON сцены для pipeline обогащения.
 	 * Использует сохраненный originalJson, если есть, иначе конвертирует Scene в JSON.

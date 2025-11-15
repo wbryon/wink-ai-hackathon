@@ -35,6 +35,17 @@ public class GlobalExceptionHandler {
 				));
 	}
 
+	@ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+	public ResponseEntity<Map<String, Object>> handleNoResourceFound(org.springframework.web.servlet.resource.NoResourceFoundException ex) {
+		// Игнорируем ошибки поиска статических ресурсов - это нормально для API-only backend
+		log.debug("Static resource not found (expected for API-only backend): {}", ex.getResourcePath());
+		return ResponseEntity.status(HttpStatus.NOT_FOUND)
+				.body(Map.of(
+						"error", "Not Found",
+						"message", "Resource not found"
+				));
+	}
+
 	@ExceptionHandler(Exception.class)
 	public ResponseEntity<Map<String, Object>> handleGenericException(Exception ex) {
 		log.error("Unhandled exception", ex);
