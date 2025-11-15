@@ -146,7 +146,8 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
   const handleGenerateFrame = async (sceneId, index) => {
     try {
       setGenerating(prev => ({ ...prev, [index]: true }));
-      const frame = await generateFrame(sceneId, 'medium');
+      // backend ожидает detailLevel: sketch | mid | final | direct_final
+      const frame = await generateFrame(sceneId, 'mid');
       const newScenes = [...scenes];
       const prevFrames = Array.isArray(newScenes[index].generatedFrames) ? newScenes[index].generatedFrames : [];
       newScenes[index] = {

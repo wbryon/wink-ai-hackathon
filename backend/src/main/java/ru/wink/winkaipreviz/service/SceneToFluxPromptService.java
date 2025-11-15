@@ -57,13 +57,33 @@ public class SceneToFluxPromptService {
                 + "\n\nHere is the scene JSON:\n"
                 + sceneJson;
 
-        String raw = ollamaClient.generateText(fullPrompt).block();
+        // Лучше использовать строгий JSON-режим
+        String raw = ollamaClient.generateJson(fullPrompt).block();
+
+        if (raw == null) {
+            throw new IllegalStateException("LLM returned null response for enriched scene");
+        }
+
         raw = cleanModelOutput(raw);
+        if (raw.isBlank()) {
+            throw new IllegalStateException("LLM returned empty response for enriched scene after cleaning");
+        }
 
-        // проверяем, что модель вернула валидный JSON
-        mapper.readTree(raw);
+        String candidate = raw.trim();
+        int start = candidate.indexOf('{');
+        int end = candidate.lastIndexOf('}');
 
-        return raw;
+        if (start == -1 || end == -1 || end <= start) {
+            throw new IllegalStateException("LLM did not return a JSON object for enriched scene");
+        }
+
+        if (start != 0 || end != candidate.length() - 1) {
+            candidate = candidate.substring(start, end + 1).trim();
+        }
+
+        JsonNode root = mapper.readTree(candidate);
+        // Нормализуем JSON (убираем лишние пробелы/форматирование)
+        return mapper.writeValueAsString(root);
     }
 
     /**
@@ -75,11 +95,14 @@ public class SceneToFluxPromptService {
                 + enrichedJson;
 
         String raw = ollamaClient.generateText(fullPrompt).block();
-        raw = cleanModelOutput(raw);
+        if (raw == null) {
+            throw new IllegalStateException("LLM returned null response for Flux prompt");
+        }
 
+        raw = cleanModelOutput(raw);
         return raw.trim();
     }
-    
+
     /**
      * Публичный метод для пересборки Flux prompt из enriched JSON (используется при обновлении слотов).
      */
@@ -88,13 +111,21 @@ public class SceneToFluxPromptService {
     }
 
     /**
-     * Убираем служебные теги наподобие <think>…</think>, если модель их выдаёт.
+     * Убираем служебные теги и markdown-кодблоки из ответа модели.
      */
     private String cleanModelOutput(String raw) {
         if (raw == null) return "";
-        return raw
-                .replaceAll("(?s)<think>.*?</think>\\s*", "")
-                .trim();
+
+        String cleaned = raw;
+
+        // 1) <think>...</think>
+        cleaned = cleaned.replaceAll("(?s)<think>.*?</think>\\s*", "");
+
+        // 2) ```json и просто ```
+        cleaned = cleaned.replaceAll("(?is)```json", "");
+        cleaned = cleaned.replaceAll("(?s)```", "");
+
+        return cleaned.trim();
     }
 
     public record FluxPromptResult(String sceneId, String enrichedJson, String prompt) {}

@@ -4,6 +4,9 @@ import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 @Entity
 @Table(name = "scene_visual")
 public class SceneVisualEntity {
@@ -20,8 +23,9 @@ public class SceneVisualEntity {
 
     /**
      * Enriched JSON после Missing-Data Enhancer
+     * Храним как jsonb, но в Java — обычная String.
      */
-    @Lob
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "enriched_json", columnDefinition = "jsonb", nullable = false)
     private String enrichedJson;
 
@@ -85,4 +89,3 @@ public class SceneVisualEntity {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 }
-
