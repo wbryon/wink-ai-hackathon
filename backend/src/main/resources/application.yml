@@ -50,6 +50,11 @@ script-processor:
   base-url: ${SCRIPT_PROCESSOR_BASE_URL:http://script-processor:8020}
   model: ${SCRIPT_PROCESSOR_MODEL:Qwen/Qwen3-32B}
 
+ollama:
+  base-url: ${OLLAMA_BASE_URL:http://ollama:11434}
+  api-key: ${OLLAMA_API_KEY:}
+  model: ${OLLAMA_MODEL:qwen2.5:32b}
+
 management:
   endpoints:
     web:
