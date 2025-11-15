@@ -40,13 +40,16 @@ const WorkflowManager = () => {
   const checkComfyStatus = async () => {
     try {
       setLoading(true);
-      // ComfyUI запущен на хосте, используем host.docker.internal для Docker или localhost для локальной разработки
-      const comfyUrl = import.meta.env.VITE_COMFY_URL || 'http://127.0.0.1:8188';
+      // Используем proxy через nginx для доступа к ComfyUI
+      // В production (Docker) используем относительный путь через nginx proxy
+      // В development можно использовать переменную окружения или прямой URL
+      const comfyUrl = import.meta.env.VITE_COMFY_URL || '/comfyui';
       const response = await fetch(`${comfyUrl}/system_stats`);
       if (response.ok) {
         const data = await response.json();
         setComfyStatus({ connected: true, data });
         setSuccess('ComfyUI подключен успешно');
+        setError(null);
       } else {
         setComfyStatus({ connected: false });
         setError('ComfyUI недоступен');

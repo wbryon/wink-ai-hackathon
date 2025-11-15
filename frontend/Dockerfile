@@ -5,7 +5,7 @@ WORKDIR /app
 
 # Аргументы сборки для переменных окружения Vite
 ARG VITE_API_BASE_URL=/api
-ARG VITE_COMFY_URL=http://host.docker.internal:8188
+ARG VITE_COMFY_URL=/comfyui
 
 # Устанавливаем переменные окружения для сборки
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
