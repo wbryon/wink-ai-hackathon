@@ -76,6 +76,14 @@ public class OllamaClient {
      * Добавляет параметр "format": "json" и "think": false.
      */
     public Mono<String> generateJson(String prompt) {
+        return generateJson(prompt, 1500);
+    }
+
+    /**
+     * Генерация строго в JSON-формате с настраиваемым num_predict.
+     * Используется для повторных попыток с увеличенным лимитом токенов.
+     */
+    public Mono<String> generateJson(String prompt, int numPredict) {
         Map<String, Object> body = Map.of(
                 "model", model,
                 "prompt", prompt,
@@ -84,7 +92,7 @@ public class OllamaClient {
                 "think", false,        // не возвращать отдельный thinking-output
                 "options", Map.of(
                         "temperature", 0.1,   // пониже, чтобы меньше фантазий
-                        "num_predict", 1500
+                        "num_predict", numPredict
                 )
         );
 
