@@ -28,6 +28,8 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
   const [showPrompts, setShowPrompts] = useState({}); // per-scene prompt visibility
   const [sceneEnrichedJson, setSceneEnrichedJson] = useState({}); // per-scene enriched JSON from enrichment pipeline
   const [showEnrichedJson, setShowEnrichedJson] = useState({}); // per-scene enriched JSON visibility
+  const [sceneBaseJson, setSceneBaseJson] = useState({}); // per-scene base JSON from scene parsing
+  const [showBaseJson, setShowBaseJson] = useState({}); // per-scene base JSON visibility
   const [scenesLoading, setScenesLoading] = useState(false);
 
   // Загрузить сцены из API, если они не переданы или пустые
@@ -47,6 +49,17 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
           const loadedScenes = await getScenes(scriptId);
           if (loadedScenes && loadedScenes.length > 0) {
             setScenes(loadedScenes);
+            
+            // Сохраняем base JSON из загруженных сцен
+            const baseJsonToLoad = {};
+            for (const scene of loadedScenes) {
+              if (scene.id && scene.originalJson) {
+                baseJsonToLoad[scene.id] = scene.originalJson;
+              }
+            }
+            if (Object.keys(baseJsonToLoad).length > 0) {
+              setSceneBaseJson(prev => ({ ...prev, ...baseJsonToLoad }));
+            }
             
             // Загружаем промпты и enriched JSON для всех сцен, у которых они могут быть
             const promptsToLoad = {};
@@ -227,6 +240,17 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
           const updatedScenes = await getScenes(scriptId);
           if (updatedScenes && updatedScenes.length > 0) {
             setScenes(updatedScenes);
+            
+            // Обновляем base JSON из обновленных сцен
+            const updatedBaseJson = {};
+            for (const scene of updatedScenes) {
+              if (scene.id && scene.originalJson) {
+                updatedBaseJson[scene.id] = scene.originalJson;
+              }
+            }
+            if (Object.keys(updatedBaseJson).length > 0) {
+              setSceneBaseJson(prev => ({ ...prev, ...updatedBaseJson }));
+            }
           }
         }
         
@@ -558,9 +582,43 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
                               scene text → ollama → json → ollama → enriched json → ollama → prompt
                             </p>
                             
-                            {/* Отображение результатов пайплайна обогащения */}
-                            {(scenePrompts[scene.id] || sceneEnrichedJson[scene.id]) && (
+                            {/* Отображение результатов парсинга и обогащения */}
+                            {(sceneBaseJson[scene.id] || scenePrompts[scene.id] || sceneEnrichedJson[scene.id]) && (
                               <div className="mt-3 space-y-3">
+                                {/* 0. Base JSON (результат парсинга после загрузки файла) */}
+                                {sceneBaseJson[scene.id] && (
+                                  <div className="p-3 bg-wink-black/50 rounded-lg border border-wink-gray/30">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <div className="flex items-center gap-2">
+                                        <Sparkles className="w-4 h-4 text-purple-400" />
+                                        <span className="text-xs font-bold text-purple-400">0. Base JSON (результат парсинга)</span>
+                                      </div>
+                                      <button
+                                        onClick={() => setShowBaseJson(prev => ({ ...prev, [scene.id]: !prev[scene.id] }))}
+                                        className="text-xs text-wink-orange hover:text-wink-orange-light transition-colors"
+                                      >
+                                        {showBaseJson[scene.id] ? 'Скрыть' : 'Показать'}
+                                      </button>
+                                    </div>
+                                    {showBaseJson[scene.id] && (
+                                      <div className="mt-2 p-3 bg-wink-dark rounded text-xs text-gray-300 max-h-64 overflow-y-auto">
+                                        <pre className="whitespace-pre-wrap font-mono text-xs">
+                                          {(() => {
+                                            try {
+                                              const json = typeof sceneBaseJson[scene.id] === 'string' 
+                                                ? JSON.parse(sceneBaseJson[scene.id]) 
+                                                : sceneBaseJson[scene.id];
+                                              return JSON.stringify(json, null, 2);
+                                            } catch (e) {
+                                              return sceneBaseJson[scene.id];
+                                            }
+                                          })()}
+                                        </pre>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                
                                 {/* 1. Enriched JSON */}
                                 {sceneEnrichedJson[scene.id] && (
                                   <div className="p-3 bg-wink-black/50 rounded-lg border border-wink-gray/30">

@@ -20,6 +20,9 @@ public class SceneDto {
     private List<String> characters = new ArrayList<>();
     private List<String> props = new ArrayList<>();
 
+    /** Raw JSON returned by the scene parser (Ollama) - base JSON после парсинга сцены. */
+    private String originalJson;
+
     private List<FrameDto> generatedFrames = new ArrayList<>();
     private FrameDto currentFrame;
 
@@ -53,6 +56,9 @@ public class SceneDto {
 
     public List<String> getProps() { return props; }
     public void setProps(List<String> props) { this.props = props; }
+
+    public String getOriginalJson() { return originalJson; }
+    public void setOriginalJson(String originalJson) { this.originalJson = originalJson; }
 
     public List<FrameDto> getGeneratedFrames() { return generatedFrames; }
     public void setGeneratedFrames(List<FrameDto> generatedFrames) { this.generatedFrames = generatedFrames; }

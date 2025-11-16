@@ -122,6 +122,29 @@ const FrameViewer = ({ scenes: initialScenes, scriptId }) => {
     }
   }, [currentSceneIndex]);
 
+  // Обновить promptText при смене сцены или при наличии кадра с промптом
+  useEffect(() => {
+    if (!currentScene) {
+      setPromptText('');
+      return;
+    }
+    
+    if (currentScene.currentFrame?.prompt) {
+      // Если есть кадр с промптом, используем его
+      setPromptText(currentScene.currentFrame.prompt);
+    } else if (currentScene.prompt) {
+      // Если есть промпт на уровне сцены, используем его
+      setPromptText(currentScene.prompt);
+    } else {
+      // Иначе генерируем дефолтный промпт на основе данных сцены
+      let prompt = currentScene.description || '';
+      if (currentScene.location) prompt += ` Локация: ${currentScene.location}.`;
+      if (currentScene.characters?.length) prompt += ` Персонажи: ${currentScene.characters.join(', ')}.`;
+      if (currentScene.props?.length) prompt += ` Реквизит: ${currentScene.props.join(', ')}.`;
+      setPromptText(prompt.trim() || '');
+    }
+  }, [currentSceneIndex, currentScene?.id, currentScene?.currentFrame?.id, currentScene?.currentFrame?.prompt, currentScene?.prompt]);
+
   // Загрузить enriched JSON / слоты при смене сцены
   useEffect(() => {
     const loadVisual = async () => {

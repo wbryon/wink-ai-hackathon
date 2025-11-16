@@ -1095,6 +1095,7 @@ public class PrevizService {
 		dto.setCharacters(new ArrayList<>(s.getCharacters()));
 		dto.setProps(new ArrayList<>(s.getProps()));
 		dto.setDescription(s.getDescription());
+		dto.setOriginalJson(s.getOriginalJson()); // Base JSON после парсинга сцены через Ollama
 		List<Frame> frames = frameRepository.findByScene_IdOrderByCreatedAtDesc(s.getId());
 		List<FrameDto> frameDtos = new ArrayList<>();
 		for (Frame f : frames) {
