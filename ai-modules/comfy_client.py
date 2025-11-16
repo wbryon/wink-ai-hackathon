@@ -76,7 +76,12 @@ def _queue_prompt(prompt: Dict[str, Any]) -> str:
     url = f"{COMFY_BASE_URL}/prompt"
     payload = {"prompt": prompt, "client_id": _CLIENT_ID}
     resp = requests.post(url, json=payload, timeout=60)
-    resp.raise_for_status()
+    try:
+        resp.raise_for_status()
+    except requests.HTTPError as e:
+        # Логируем тело ответа ComfyUI для удобной отладки 400/500
+        LOG.error("ComfyUI /prompt error: %s - response body: %s", e, resp.text)
+        raise
     data = resp.json()
     prompt_id = data.get("prompt_id")
     if not prompt_id:
