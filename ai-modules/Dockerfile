@@ -5,6 +5,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Устанавливаем curl для удобной отладки (проверка COMFY_BASE_URL из контейнера)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # Зависимости Python (только FastAPI и requests, без torch/diffusers)
 COPY requirements.txt .
 

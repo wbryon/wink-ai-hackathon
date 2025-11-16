@@ -31,9 +31,8 @@ services:
       - SCRIPT_PROCESSOR_BASE_URL=http://script-processor:8000
       - SCRIPT_PROCESSOR_MODEL=${SCRIPT_PROCESSOR_MODEL:-Qwen/Qwen3-32B}
       - APP_WORKFLOWS_DIR=${APP_WORKFLOWS_DIR:-/app/workflows}
-      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      - OLLAMA_API_KEY=${OLLAMA_API_KEY:-}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen3:4b}
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_MODEL=qwen3:4b-instruct
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://$SERVER_IP:3000,http://localhost:5173,http://localhost:3000}  # Подставляем SERVER_IP
 
     depends_on:
