@@ -42,6 +42,11 @@ app:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
   rate-limit:
     per-minute: ${APP_RATE_LIMIT_PER_MINUTE:5}
+  scene-parser:
+    # In‑memory queue capacity for scene parsing tasks (to protect memory under large scripts).
+    queue-capacity: ${SCENE_PARSER_QUEUE_CAPACITY:256}
+    # Number of worker threads polling the queue and calling Ollama (limits parallel LLM calls).
+    worker-threads: ${SCENE_PARSER_WORKERS:4}
 
 ai:
   generate:
@@ -53,7 +58,12 @@ script-processor:
 ollama:
   base-url: ${OLLAMA_BASE_URL:http://host.docker.internal:11434}
   api-key: ${OLLAMA_API_KEY:}
-  model: ${OLLAMA_MODEL:qwen2.5:32b}
+  # Default model for all Ollama-based scene parsing and prompt-building.
+  # For this project we target a single small model instance used via /api/generate.
+  model: ${OLLAMA_MODEL:qwen3:4b-instruct}
+  # Basic HTTP timeouts (ms) to avoid hanging requests.
+  connect-timeout-ms: ${OLLAMA_CONNECT_TIMEOUT_MS:5000}
+  read-timeout-ms: ${OLLAMA_READ_TIMEOUT_MS:120000}
 
 management:
   endpoints:

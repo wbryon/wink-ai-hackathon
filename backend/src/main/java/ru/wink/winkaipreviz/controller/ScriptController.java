@@ -7,7 +7,9 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import ru.wink.winkaipreviz.dto.SceneDetailsDto;
 import ru.wink.winkaipreviz.dto.SceneDto;
+import ru.wink.winkaipreviz.dto.ScriptParsingStatusDto;
 import ru.wink.winkaipreviz.dto.ScriptUploadResponse;
 import ru.wink.winkaipreviz.service.PrevizService;
 
@@ -51,6 +53,16 @@ public class ScriptController {
     @GetMapping("/{scriptId}/scenes")
     public List<SceneDto> getScenes(@PathVariable String scriptId) {
         return service.getScenes(scriptId);
+    }
+
+    @GetMapping("/{scriptId}/status")
+    public ScriptParsingStatusDto getScriptStatus(@PathVariable String scriptId) {
+        return service.getScriptParsingStatus(scriptId);
+    }
+
+    @GetMapping("/scenes/{sceneId}")
+    public SceneDetailsDto getSceneDetails(@PathVariable String sceneId) {
+        return service.getSceneDetails(sceneId);
     }
 
     // addScene удалён в новой схеме; сцены создаются пайплайном парсинга

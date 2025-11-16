@@ -74,7 +74,7 @@ public class Scene {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
-    private SceneStatus status = SceneStatus.PARSED;
+    private SceneStatus status = SceneStatus.PENDING;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();

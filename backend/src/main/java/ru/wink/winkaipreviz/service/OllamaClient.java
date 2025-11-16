@@ -7,8 +7,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+
+import reactor.netty.http.client.HttpClient;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import io.netty.channel.ChannelOption;
 
 @Service
 public class OllamaClient {
@@ -19,12 +24,19 @@ public class OllamaClient {
     public OllamaClient(
             @Value("${ollama.base-url}") String baseUrl,
             @Value("${ollama.api-key:}") String apiKey,
-            @Value("${ollama.model:qwen3:32b}") String model) {
+            @Value("${ollama.model:qwen3:4b-instruct}") String model,
+            @Value("${ollama.connect-timeout-ms:5000}") int connectTimeoutMs,
+            @Value("${ollama.read-timeout-ms:120000}") int readTimeoutMs) {
 
         this.model = model;
 
+        HttpClient httpClient = HttpClient.create()
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeoutMs)
+                .responseTimeout(Duration.ofMillis(readTimeoutMs));
+
         WebClient.Builder builder = WebClient.builder()
                 .baseUrl(baseUrl)
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
 
         if (apiKey != null && !apiKey.isBlank()) {

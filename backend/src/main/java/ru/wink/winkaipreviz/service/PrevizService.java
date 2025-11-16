@@ -49,6 +49,8 @@ public class PrevizService {
 
 	private final AsyncTaskExecutor taskExecutor;
 
+	private final SceneParsingQueueService sceneParsingQueueService;
+
     @Value("${app.parser.threshold:3}")
     private int parserThreshold;
 
@@ -67,7 +69,8 @@ public class PrevizService {
 						 SceneToFluxPromptService sceneToFluxPromptService,
 						 SceneVisualRepository sceneVisualRepository,
 						 SceneVisualService sceneVisualService,
-						 AsyncTaskExecutor taskExecutor) {
+						 AsyncTaskExecutor taskExecutor,
+						 SceneParsingQueueService sceneParsingQueueService) {
 		this.scriptRepository = scriptRepository;
 		this.sceneRepository = sceneRepository;
 		this.frameRepository = frameRepository;
@@ -79,6 +82,7 @@ public class PrevizService {
 		this.sceneVisualRepository = sceneVisualRepository;
 		this.sceneVisualService = sceneVisualService;
 		this.taskExecutor = taskExecutor;
+		this.sceneParsingQueueService = sceneParsingQueueService;
 	}
 	@Transactional
 	public ScriptUploadResponse createScriptFromUpload(MultipartFile file) throws Exception {
@@ -152,7 +156,8 @@ public class PrevizService {
 				scene.setTitle(sceneData.slugline());
 				scene.setLocation(sceneData.place());
 				scene.setDescription(sceneData.text()); // Сохраняем полный текст сцены
-				scene.setStatus(SceneStatus.PARSED);
+				// Статус PENDING: сцена ожидает LLM‑парсинга через Ollama
+				scene.setStatus(SceneStatus.PENDING);
 				
 				parsedScenes.add(scene);
 				
@@ -166,7 +171,19 @@ public class PrevizService {
 		}
 		
 		log.info("(background) Created {} scenes for scriptId={}", parsedScenes.size(), script.getId());
-		sceneRepository.saveAll(parsedScenes);
+		List<Scene> savedScenes = sceneRepository.saveAll(parsedScenes);
+
+		// 4b) Ставим сцены в очередь на LLM‑парсинг
+		for (Scene s : savedScenes) {
+			if (s.getId() != null) {
+				boolean accepted = sceneParsingQueueService.submit(
+						new SceneParsingTask(script.getId(), s.getId()));
+				if (!accepted) {
+					log.warn("Failed to enqueue scene for parsing (queue full). scriptId={}, sceneId={}",
+							script.getId(), s.getId());
+				}
+			}
+		}
 
 		// 5) Сохраняем извлечённый текст (как конкатенацию сцен)
 		if (allText.length() > 0) {
@@ -192,6 +209,31 @@ public class PrevizService {
 			result.add(mapSceneWithFrames(s));
 		}
 		return result;
+	}
+
+	@Transactional(readOnly = true)
+	public SceneDetailsDto getSceneDetails(String sceneIdStr) {
+		UUID sceneId = UUID.fromString(sceneIdStr);
+		Scene scene = sceneRepository.findById(sceneId)
+				.orElseThrow(() -> new IllegalArgumentException("Scene not found: " + sceneIdStr));
+
+		SceneDetailsDto dto = new SceneDetailsDto();
+		dto.setId(scene.getId().toString());
+		dto.setScriptId(scene.getScript() != null && scene.getScript().getId() != null
+				? scene.getScript().getId().toString()
+				: null);
+		dto.setTitle(scene.getTitle());
+		dto.setLocation(scene.getLocation());
+		dto.setDescription(scene.getDescription());
+		dto.setSemanticSummary(scene.getSemanticSummary());
+		dto.setTone(scene.getTone());
+		dto.setStyle(scene.getStyle());
+		dto.setStatus(scene.getStatus() != null ? scene.getStatus().name() : null);
+		dto.setCharacters(new ArrayList<>(scene.getCharacters() == null ? List.of() : scene.getCharacters()));
+		dto.setProps(new ArrayList<>(scene.getProps() == null ? List.of() : scene.getProps()));
+		dto.setOriginalJson(scene.getOriginalJson());
+
+		return dto;
 	}
 
 	@Transactional
@@ -371,6 +413,33 @@ public class PrevizService {
 		}
 
 		return cards;
+	}
+
+	@Transactional(readOnly = true)
+	public ScriptParsingStatusDto getScriptParsingStatus(String scriptIdStr) {
+		UUID scriptId = UUID.fromString(scriptIdStr);
+		Script script = scriptRepository.findById(scriptId)
+				.orElseThrow(() -> new IllegalArgumentException("Script not found: " + scriptIdStr));
+
+		long pending = sceneRepository.countByScript_IdAndStatus(scriptId, SceneStatus.PENDING);
+		long processing = sceneRepository.countByScript_IdAndStatus(scriptId, SceneStatus.PROCESSING);
+		long parsed = sceneRepository.countByScript_IdAndStatus(scriptId, SceneStatus.PARSED);
+		long failed = sceneRepository.countByScript_IdAndStatus(scriptId, SceneStatus.FAILED);
+		long total = pending + processing + parsed + failed;
+
+		double completionPercent = total == 0 ? 0.0 : ((parsed + failed) * 100.0d) / total;
+
+		ScriptParsingStatusDto dto = new ScriptParsingStatusDto();
+		dto.setScriptId(script.getId().toString());
+		dto.setScriptStatus(script.getStatus() != null ? script.getStatus().name() : null);
+		dto.setTotalScenes(total);
+		dto.setPendingScenes(pending);
+		dto.setProcessingScenes(processing);
+		dto.setParsedScenes(parsed);
+		dto.setFailedScenes(failed);
+		dto.setCompletionPercent(completionPercent);
+
+		return dto;
 	}
 
 	@Transactional
@@ -977,6 +1046,7 @@ public class PrevizService {
 		dto.setId(s.getId().toString());
 		dto.setTitle(s.getTitle());
 		dto.setLocation(s.getLocation());
+		dto.setStatus(s.getStatus() != null ? s.getStatus().name() : null);
 		dto.setCharacters(new ArrayList<>(s.getCharacters()));
 		dto.setProps(new ArrayList<>(s.getProps()));
 		dto.setDescription(s.getDescription());

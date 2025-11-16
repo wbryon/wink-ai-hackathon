@@ -291,7 +291,23 @@ CHUNK TEXT (RUSSIAN SCREENPLAY):
 
     private Scene mapJsonToScene(JsonNode node) {
         Scene scene = new Scene();
+        applySceneJsonToEntity(node, scene);
+        return scene;
+    }
 
+    /**
+     * Applies parsed scene JSON (string form) to an existing Scene entity.
+     * Used by background workers that already have a persisted Scene.
+     */
+    public void applySceneJsonToEntity(String sceneJson, Scene scene) throws Exception {
+        JsonNode node = mapper.readTree(sceneJson);
+        applySceneJsonToEntity(node, scene);
+    }
+
+    /**
+     * Shared mapping logic: JSON node -> Scene fields.
+     */
+    private void applySceneJsonToEntity(JsonNode node, Scene scene) {
         // slugline_raw -> title
         if (node.has("slugline_raw")) {
             scene.setTitle(node.get("slugline_raw").asText());
@@ -368,7 +384,8 @@ CHUNK TEXT (RUSSIAN SCREENPLAY):
             scene.setProps(props);
         }
 
-        return scene;
+        // Обновляем статус на PARSED, если он ещё не установлен
+        scene.setStatus(SceneStatus.PARSED);
     }
 
     /**

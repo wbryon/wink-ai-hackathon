@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import ru.wink.winkaipreviz.entity.Scene;
+import ru.wink.winkaipreviz.entity.SceneStatus;
 
 import java.util.List;
 import java.util.UUID;
@@ -16,4 +17,6 @@ public interface SceneRepository extends JpaRepository<Scene, UUID> {
     boolean existsByScript_IdAndExternalId(UUID scriptId, String externalId);
 
     boolean existsByScript_IdAndDedupHash(UUID scriptId, String dedupHash);
+
+    long countByScript_IdAndStatus(UUID scriptId, SceneStatus status);
 }

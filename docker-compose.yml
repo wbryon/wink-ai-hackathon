@@ -65,6 +65,8 @@ services:
     volumes:
       - ./data/frames:/data/frames
       - ./ai-modules/workflows:/app/workflows:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   script-processor:
     build: ./script_processor
