@@ -187,38 +187,21 @@ CHUNK TEXT (RUSSIAN SCREENPLAY):
 
         // Извлекаем JSON - может быть массив или объект
         String candidate = raw.trim();
-        int arrayStart = candidate.indexOf('[');
-        int arrayEnd = candidate.lastIndexOf(']');
         int objectStart = candidate.indexOf('{');
         int objectEnd = candidate.lastIndexOf('}');
+        int arrayStart = candidate.indexOf('[');
+        int arrayEnd = candidate.lastIndexOf(']');
 
         JsonNode root;
         
-        // Сначала пытаемся найти массив
-        if (arrayStart != -1 && arrayEnd != -1 && arrayEnd > arrayStart) {
-            candidate = candidate.substring(arrayStart, arrayEnd + 1).trim();
-            log.debug("Extracted JSON array candidate (length: {} chars)", candidate.length());
-            
-            try {
-                root = mapper.readTree(candidate);
-            } catch (Exception e) {
-                log.error("Failed to parse JSON array. Candidate (first 1000 chars): {}", 
-                        candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate, e);
-                throw new IllegalStateException("Failed to parse JSON array: " + e.getMessage() + 
-                        ". Response preview: " + (candidate.length() > 500 ? candidate.substring(0, 500) + "..." : candidate));
-            }
-            
-            if (!root.isArray()) {
-                log.warn("Extracted JSON is not an array, trying to parse as object and wrap in array");
-                // Попробуем распарсить как объект и обернуть в массив
-                JsonNode objNode = mapper.readTree(candidate);
-                root = mapper.createArrayNode().add(objNode);
-            }
-        } 
-        // Если массив не найден, пытаемся найти объект и обернуть его в массив
-        else if (objectStart != -1 && objectEnd != -1 && objectEnd > objectStart) {
-            candidate = candidate.substring(objectStart, objectEnd + 1).trim();
-            log.debug("LLM returned JSON object instead of array, wrapping in array. Object (length: {} chars)", candidate.length());
+        // ВАЖНО: Сначала проверяем, является ли весь ответ объектом на верхнем уровне
+        // (начинается с { и заканчивается }), чтобы не извлечь массив изнутри объекта
+        boolean isTopLevelObject = objectStart == 0 && objectEnd == candidate.length() - 1;
+        boolean isTopLevelArray = arrayStart == 0 && arrayEnd == candidate.length() - 1;
+        
+        if (isTopLevelObject) {
+            // Весь ответ - это объект, оборачиваем в массив
+            log.debug("LLM returned JSON object at top level, wrapping in array. Object (length: {} chars)", candidate.length());
             log.debug("Extracted JSON object candidate (first 1000 chars): {}", 
                     candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate);
             
@@ -226,11 +209,62 @@ CHUNK TEXT (RUSSIAN SCREENPLAY):
                 JsonNode objNode = mapper.readTree(candidate);
                 // Оборачиваем объект в массив
                 root = mapper.createArrayNode().add(objNode);
-                log.info("Successfully wrapped JSON object in array");
+                log.info("Successfully wrapped top-level JSON object in array");
             } catch (Exception e) {
-                log.error("Failed to parse JSON object. Candidate (first 1000 chars): {}", 
+                log.error("Failed to parse top-level JSON object. Candidate (first 1000 chars): {}", 
                         candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate, e);
                 throw new IllegalStateException("Failed to parse JSON object: " + e.getMessage() + 
+                        ". Response preview: " + (candidate.length() > 500 ? candidate.substring(0, 500) + "..." : candidate));
+            }
+        } else if (isTopLevelArray) {
+            // Весь ответ - это массив на верхнем уровне
+            log.debug("Extracted JSON array candidate (length: {} chars)", candidate.length());
+            
+            try {
+                root = mapper.readTree(candidate);
+                if (!root.isArray()) {
+                    log.error("Top-level structure is not an array after parsing. Type: {}", root.getNodeType());
+                    throw new IllegalStateException("Failed to parse JSON array, got: " + root.getNodeType());
+                }
+            } catch (Exception e) {
+                log.error("Failed to parse JSON array. Candidate (first 1000 chars): {}", 
+                        candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate, e);
+                throw new IllegalStateException("Failed to parse JSON array: " + e.getMessage() + 
+                        ". Response preview: " + (candidate.length() > 500 ? candidate.substring(0, 500) + "..." : candidate));
+            }
+        } else if (objectStart != -1 && objectEnd != -1 && objectEnd > objectStart) {
+            // Объект найден, но не на верхнем уровне - извлекаем его
+            candidate = candidate.substring(objectStart, objectEnd + 1).trim();
+            log.debug("Extracted JSON object from response (length: {} chars)", candidate.length());
+            log.debug("Extracted JSON object candidate (first 1000 chars): {}", 
+                    candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate);
+            
+            try {
+                JsonNode objNode = mapper.readTree(candidate);
+                // Оборачиваем объект в массив
+                root = mapper.createArrayNode().add(objNode);
+                log.info("Successfully wrapped extracted JSON object in array");
+            } catch (Exception e) {
+                log.error("Failed to parse extracted JSON object. Candidate (first 1000 chars): {}", 
+                        candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate, e);
+                throw new IllegalStateException("Failed to parse JSON object: " + e.getMessage() + 
+                        ". Response preview: " + (candidate.length() > 500 ? candidate.substring(0, 500) + "..." : candidate));
+            }
+        } else if (arrayStart != -1 && arrayEnd != -1 && arrayEnd > arrayStart) {
+            // Массив найден, но не на верхнем уровне - извлекаем его
+            candidate = candidate.substring(arrayStart, arrayEnd + 1).trim();
+            log.debug("Extracted JSON array from response (length: {} chars)", candidate.length());
+            
+            try {
+                root = mapper.readTree(candidate);
+                if (!root.isArray()) {
+                    log.error("Extracted structure is not an array after parsing. Type: {}", root.getNodeType());
+                    throw new IllegalStateException("Failed to parse JSON array, got: " + root.getNodeType());
+                }
+            } catch (Exception e) {
+                log.error("Failed to parse extracted JSON array. Candidate (first 1000 chars): {}", 
+                        candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate, e);
+                throw new IllegalStateException("Failed to parse JSON array: " + e.getMessage() + 
                         ". Response preview: " + (candidate.length() > 500 ? candidate.substring(0, 500) + "..." : candidate));
             }
         } else {
