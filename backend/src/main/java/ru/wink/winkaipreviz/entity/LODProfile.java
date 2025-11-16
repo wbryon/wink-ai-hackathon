@@ -17,7 +17,7 @@ public enum LODProfile {
             8, 15,           // steps: 8-15
             5.0, 7.0,        // CFG: умеренный/пониженный
             null, null,      // denoise: не используется (text2img)
-            "1024",          // разрешение по большей стороне
+            "720",           // разрешение по большей стороне (длинная сторона 720 px)
             List.of("colors", "fine textures", "typography", "text watermark"), // негативы
             false,           // требует refiner
             false            // требует upscale
@@ -32,7 +32,7 @@ public enum LODProfile {
             18, 28,          // steps: 18-28
             6.0, 8.0,        // CFG: умеренный
             0.25, 0.45,      // denoise: бережный диапазон для img2img
-            "1280",          // разрешение
+            "720",           // разрешение по большей стороне (длинная сторона 720 px)
             List.of("ultra-detailed skin pores", "complex patterns", "watermark", "low-res"), // негативы
             false,           // refiner опционален
             false            // upscale опционален
@@ -47,7 +47,7 @@ public enum LODProfile {
             22, 36,          // steps: 22-36
             7.0, 9.0,        // CFG: умеренно-высокий
             0.35, 0.55,      // denoise: чуть смелее для img2img
-            "1536",          // разрешение
+            "720",           // разрешение по большей стороне (длинная сторона 720 px)
             List.of("low-res", "extra fingers", "text", "artifact", "over-sharpen", "blurry"), // негативы
             true,            // рекомендуется refiner
             true             // рекомендуется upscale
@@ -62,7 +62,7 @@ public enum LODProfile {
             28, 40,          // steps: 28-40
             7.5, 9.5,        // CFG: умеренно-высокий
             null, null,      // denoise: не используется (text2img)
-            "1280",          // разрешение
+            "720",           // разрешение по большей стороне (длинная сторона 720 px)
             List.of("low-res", "extra fingers", "text", "artifact", "complex patterns", "watermark"), // негативы
             true,            // рекомендуется refiner
             true             // рекомендуется upscale

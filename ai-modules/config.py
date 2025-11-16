@@ -39,19 +39,21 @@ TEXT2IMG_WORKFLOW_PATH = WORKFLOWS_DIR / "flux_schnell.json"
 # также перенести на flux_schnell.json или другой файл через переменные окружения).
 IMG2IMG_WORKFLOW_PATH = WORKFLOWS_DIR / "img2img.json"
 
-# LOD Profiles configuration (оставил как у тебя)
+# LOD Profiles configuration (длинная сторона 720 px)
 LOD_PROFILES: Dict[str, Dict[str, Any]] = {
     "sketch": {
         "steps": 12,
         "cfg": 3.5,
-        "resolution": (1024, 640),
+        # Для Sketch берём 720 по длинной стороне, высота 576 (4:3)
+        "resolution": (720, 576),
         "sampler": "euler_a",
         "negatives": ["colors", "fine textures", "typography", "text watermark"],
     },
     "mid": {
         "steps": 25,
         "cfg": 5.0,
-        "resolution": (1024, 768),
+        # Для Mid также фиксируем длинную сторону 720 px
+        "resolution": (720, 576),
         "sampler": "euler_a",
         "negatives": ["ultra-detailed skin pores", "complex patterns", "watermark", "low-res"],
         "denoise_range": (0.25, 0.45),
@@ -59,7 +61,8 @@ LOD_PROFILES: Dict[str, Dict[str, Any]] = {
     "final": {
         "steps": 40,
         "cfg": 6.5,
-        "resolution": (1536, 1024),
+        # Финальный кадр: те же пропорции, длинная сторона 720 px
+        "resolution": (720, 576),
         "sampler": "dpm++",
         "negatives": ["low-res", "extra fingers", "text", "artifact", "over-sharpen", "blurry"],
         "denoise_range": (0.35, 0.55),
@@ -67,7 +70,8 @@ LOD_PROFILES: Dict[str, Dict[str, Any]] = {
     "direct_final": {
         "steps": 35,
         "cfg": 7.0,
-        "resolution": (1280, 768),
+        # Direct Final: длинная сторона 720 px
+        "resolution": (720, 576),
         "sampler": "dpm++",
         "negatives": ["low-res", "extra fingers", "text", "artifact", "complex patterns", "watermark"],
     },

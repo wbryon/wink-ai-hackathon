@@ -37,13 +37,52 @@ _img2img_workflow_cache: Optional[Dict[str, Any]] = None
 
 
 def _load_workflow(path: Path) -> Dict[str, Any]:
+    """
+    Загружает workflow ComfyUI в формате "Save (API Format)".
+
+    Ожидаемый формат:
+        {
+          "1": { "class_type": "...", "inputs": {...} },
+          "2": { "class_type": "...", "inputs": {...} },
+          ...
+        }
+
+    Если формат отличается (например, обычный Save с ключами "nodes", "links"),
+    выбрасываем понятную ошибку, вместо неинформативного TypeError дальше по стеку.
+    """
     if not path.exists():
         raise FileNotFoundError(
             f"ComfyUI workflow JSON not found at {path}. "
-            f"Сохрани его из ComfyUI: Save → Save (API Format)."
+            f"Сохрани его из ComfyUI: Save → Save (API Format) в файл {path.name}."
         )
+
     with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+
+    # Проверяем, что это именно API Format: словарь {id -> node}, у node есть class_type/inputs
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"Workflow JSON at {path} должен быть объектом (dict), а не {type(data).__name__}. "
+            f"Скорее всего, сохранён обычный формат, а не 'Save (API Format)'."
+        )
+
+    # Если видим ключи вроде "nodes"/"last_node_id", явно это не API Format
+    if "nodes" in data and isinstance(data["nodes"], list):
+        raise ValueError(
+            f"Workflow JSON at {path} выглядит как обычный формат ComfyUI (с ключом 'nodes'). "
+            f"Нужен export через Save → Save (API Format), чтобы верхний уровень был {{\"1\": {{...}}, ...}}."
+        )
+
+    # Быстрая валидация структуры нод
+    for nid, node in data.items():
+        if not isinstance(node, dict) or "class_type" not in node or "inputs" not in node:
+            raise ValueError(
+                f"Workflow JSON at {path} имеет некорректную структуру ноды для id={nid}. "
+                f"Ожидалось: объект с полями 'class_type' и 'inputs'. "
+                f"Проверь, что workflow сохранён в формате 'Save (API Format)'."
+            )
+
+    return data
 
 
 def get_text2img_workflow() -> Dict[str, Any]:
@@ -182,32 +221,80 @@ def _build_text2img_prompt(
     workflow = copy.deepcopy(base_workflow)
     id_to_class = {nid: node["class_type"] for nid, node in workflow.items()}
 
-    # KSampler
-    ksampler_id = next(nid for nid, cls in id_to_class.items() if cls == "KSampler")
-    ksampler = workflow[ksampler_id]["inputs"]
+    # Ветвь 1: классический workflow с KSampler
+    if any(cls == "KSampler" for cls in id_to_class.values()):
+        ksampler_id = next(nid for nid, cls in id_to_class.items() if cls == "KSampler")
+        ksampler = workflow[ksampler_id]["inputs"]
 
-    comfy_sampler = SAMPLER_NAME_MAP.get(sampler_name, sampler_name)
-    ksampler["sampler_name"] = comfy_sampler
-    ksampler["scheduler"] = ksampler.get("scheduler", "normal")
-    ksampler["steps"] = steps
-    ksampler["cfg"] = cfg
-    ksampler["seed"] = seed
+        comfy_sampler = SAMPLER_NAME_MAP.get(sampler_name, sampler_name)
+        ksampler["sampler_name"] = comfy_sampler
+        ksampler["scheduler"] = ksampler.get("scheduler", "normal")
+        ksampler["steps"] = steps
+        ksampler["cfg"] = cfg
+        ksampler["seed"] = seed
 
-    # Latent node → поменять ширину / высоту
-    latent_node_id = ksampler["latent_image"][0]
-    latent_node = workflow[latent_node_id]
-    if latent_node["class_type"] == "EmptyLatentImage":
-        latent_inputs = latent_node["inputs"]
+        # Latent node → поменять ширину / высоту
+        latent_node_id = ksampler["latent_image"][0]
+        latent_node = workflow[latent_node_id]
+        if latent_node["class_type"] == "EmptyLatentImage":
+            latent_inputs = latent_node["inputs"]
+            latent_inputs["width"] = width
+            latent_inputs["height"] = height
+
+        # Positive / Negative CLIPTextEncode
+        positive_node_id = ksampler["positive"][0]
+        workflow[positive_node_id]["inputs"]["text"] = prompt_text
+
+        if negative_text:
+            negative_node_id = ksampler["negative"][0]
+            workflow[negative_node_id]["inputs"]["text"] = negative_text
+
+    # Ветвь 2: Flux / SamplerCustomAdvanced + BasicScheduler + KSamplerSelect
+    elif any(cls == "SamplerCustomAdvanced" for cls in id_to_class.values()):
+        # 1) Настраиваем scheduler (steps / denoise)
+        scheduler_id = next(
+            nid for nid, cls in id_to_class.items() if cls == "BasicScheduler"
+        )
+        scheduler_inputs = workflow[scheduler_id]["inputs"]
+        scheduler_inputs["steps"] = steps
+        # denoise оставляем как есть или можно адаптировать при необходимости
+
+        # 2) Настраиваем sampler (KSamplerSelect)
+        kselect_id = next(
+            nid for nid, cls in id_to_class.items() if cls == "KSamplerSelect"
+        )
+        kselect_inputs = workflow[kselect_id]["inputs"]
+        kselect_inputs["sampler_name"] = SAMPLER_NAME_MAP.get(sampler_name, sampler_name)
+
+        # 3) Seed: RandomNoise
+        noise_id = next(
+            nid for nid, cls in id_to_class.items() if cls == "RandomNoise"
+        )
+        noise_inputs = workflow[noise_id]["inputs"]
+        noise_inputs["noise_seed"] = seed
+
+        # 4) Latent размер: EmptyLatentImage
+        latent_id = next(
+            nid for nid, cls in id_to_class.items() if cls == "EmptyLatentImage"
+        )
+        latent_inputs = workflow[latent_id]["inputs"]
         latent_inputs["width"] = width
         latent_inputs["height"] = height
 
-    # Positive / Negative CLIPTextEncode
-    positive_node_id = ksampler["positive"][0]
-    workflow[positive_node_id]["inputs"]["text"] = prompt_text
+        # 5) Текстовый энкодер (positive prompt)
+        clip_id = next(
+            nid for nid, cls in id_to_class.items() if cls == "CLIPTextEncode"
+        )
+        clip_inputs = workflow[clip_id]["inputs"]
+        clip_inputs["text"] = prompt_text
+        # В данном flux‑workflow негативный текст обычно не используется явно,
+        # поэтому negative_text игнорируем или можно добавить как суффикс при желании.
 
-    if negative_text:
-        negative_node_id = ksampler["negative"][0]
-        workflow[negative_node_id]["inputs"]["text"] = negative_text
+    else:
+        raise ValueError(
+            "Unsupported text2img workflow: expected KSampler or SamplerCustomAdvanced/BasicScheduler, "
+            f"got classes: {set(id_to_class.values())}"
+        )
 
     return workflow
 

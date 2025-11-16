@@ -360,9 +360,16 @@ const FrameViewer = ({ scenes: initialScenes, scriptId }) => {
     galleryLodFilter === 'all' ? true : card.lod === galleryLodFilter
   );
 
-  // Начать редактирование промпта
+  // Начать редактирование промпта.
+  // В приоритете используем фактический промпт кадра,
+  // который уже был отправлен в ComfyUI при последней генерации.
   const startEditingPrompt = () => {
-    setPromptText(currentScene?.prompt || generateDefaultPrompt());
+    const basePrompt =
+      currentScene?.currentFrame?.prompt ||
+      currentScene?.prompt ||
+      generateDefaultPrompt();
+
+    setPromptText(basePrompt || '');
     setEditingPrompt(true);
   };
 
@@ -838,7 +845,11 @@ const FrameViewer = ({ scenes: initialScenes, scriptId }) => {
                 </div>
               ) : (
                 <div className="p-4 bg-wink-black rounded-lg text-sm text-gray-300">
-                  {currentScene?.prompt || generateDefaultPrompt() || 'Промпт не задан'}
+                  {/* Показываем именно тот промпт, который ушёл в ComfyUI для текущего кадра */}
+                  {currentScene?.currentFrame?.prompt ||
+                    currentScene?.prompt ||
+                    generateDefaultPrompt() ||
+                    'Промпт не задан'}
                 </div>
               )}
             </div>
