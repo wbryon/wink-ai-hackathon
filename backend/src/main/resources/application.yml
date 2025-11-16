@@ -74,4 +74,15 @@ management:
     health:
       show-details: always
 
+logging:
+  level:
+    # Уровень логирования для всего приложения (по умолчанию INFO)
+    root: INFO
+    # Детальное логирование для сервисов пайплайна обогащения
+    ru.wink.winkaipreviz.service.SceneToFluxPromptService: DEBUG
+    ru.wink.winkaipreviz.service.OllamaScriptParserService: DEBUG
+    ru.wink.winkaipreviz.service.PrevizService: INFO
+    # Можно также включить DEBUG для всего пакета service, если нужно больше деталей
+    # ru.wink.winkaipreviz.service: DEBUG
+
 

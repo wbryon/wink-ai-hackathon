@@ -165,16 +165,24 @@ CHUNK TEXT (RUSSIAN SCREENPLAY):
                 .replace("{{CHUNK_TEXT_HERE}}", sceneText)
                 + "\n\nIMPORTANT: Since this is a single scene (not a chunk), return an array with exactly ONE scene object.";
 
+        log.debug("Calling LLM for scene text parsing (text length: {} chars)", sceneText.length());
+        log.debug("Scene text preview (first 300 chars): {}", 
+                sceneText.length() > 300 ? sceneText.substring(0, 300) + "..." : sceneText);
+
         String raw = ollamaClient.generateJson(prompt).block();
 
         if (raw == null) {
-            log.warn("LLM returned null response for scene text");
-            throw new IllegalStateException("Failed to parse scene text to JSON");
+            log.error("LLM returned null response for scene text");
+            throw new IllegalStateException("Failed to parse scene text to JSON: LLM returned null");
         }
+
+        log.debug("LLM raw response (first 2000 chars): {}", 
+                raw.length() > 2000 ? raw.substring(0, 2000) + "..." : raw);
 
         raw = cleanModelOutput(raw);
         if (raw.isBlank()) {
-            throw new IllegalStateException("LLM returned empty response for scene text");
+            log.error("LLM returned empty response after cleaning");
+            throw new IllegalStateException("LLM returned empty response for scene text after cleaning");
         }
 
         // Извлекаем JSON массив
@@ -183,14 +191,34 @@ CHUNK TEXT (RUSSIAN SCREENPLAY):
         int end = candidate.lastIndexOf(']');
 
         if (start == -1 || end == -1 || end <= start) {
-            throw new IllegalStateException("LLM did not return a JSON array");
+            log.error("LLM did not return a JSON array. Raw response (first 1000 chars): {}", 
+                    candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate);
+            throw new IllegalStateException("LLM did not return a JSON array. Response: " + 
+                    (candidate.length() > 500 ? candidate.substring(0, 500) + "..." : candidate));
         }
 
         candidate = candidate.substring(start, end + 1).trim();
+        log.debug("Extracted JSON array candidate (length: {} chars)", candidate.length());
 
-        JsonNode root = mapper.readTree(candidate);
-        if (!root.isArray() || root.size() == 0) {
-            throw new IllegalStateException("LLM did not return an array with at least one scene");
+        JsonNode root;
+        try {
+            root = mapper.readTree(candidate);
+        } catch (Exception e) {
+            log.error("Failed to parse JSON array. Candidate (first 1000 chars): {}", 
+                    candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate, e);
+            throw new IllegalStateException("Failed to parse JSON array: " + e.getMessage() + 
+                    ". Response preview: " + (candidate.length() > 500 ? candidate.substring(0, 500) + "..." : candidate));
+        }
+
+        if (!root.isArray()) {
+            log.error("LLM returned non-array JSON. Type: {}, Content (first 500 chars): {}", 
+                    root.getNodeType(), root.toString().length() > 500 ? root.toString().substring(0, 500) + "..." : root.toString());
+            throw new IllegalStateException("LLM did not return a JSON array, got: " + root.getNodeType());
+        }
+
+        if (root.size() == 0) {
+            log.error("LLM returned empty array. Full candidate: {}", candidate);
+            throw new IllegalStateException("LLM did not return an array with at least one scene (array is empty)");
         }
 
         // Возвращаем первый элемент массива как JSON строку
