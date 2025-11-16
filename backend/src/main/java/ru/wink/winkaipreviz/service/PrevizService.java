@@ -906,7 +906,12 @@ public class PrevizService {
 			throw new IllegalStateException("Scene text is empty for sceneId=" + sceneId);
 		}
 		
-		log.info("Starting enrichment pipeline for sceneId={}", sceneId);
+		log.info("=== Starting enrichment pipeline for sceneId={} ===", sceneId);
+		log.info("Scene title: '{}'", scene.getTitle());
+		log.info("Scene location: '{}'", scene.getLocation());
+		log.info("Scene text length: {} chars", sceneText.length());
+		log.debug("Scene text (first 500 chars): {}", 
+				sceneText.length() > 500 ? sceneText.substring(0, 500) + "..." : sceneText);
 		
 		// Шаг 2: Парсим текст сцены в JSON через Ollama
 		String baseJson;
@@ -914,8 +919,10 @@ public class PrevizService {
 			// Используем сохраненный JSON, если есть
 			baseJson = scene.getOriginalJson();
 			log.info("Using cached base JSON for sceneId={}", sceneId);
+			log.debug("Cached base JSON:\n{}", baseJson);
 		} else {
 			// Парсим текст сцены в JSON
+			log.info("Parsing scene text to base JSON...");
 			baseJson = ollamaScriptParserService.parseSceneTextToJson(sceneText);
 			// Сохраняем base JSON в сцену
 			scene.setOriginalJson(baseJson);
@@ -924,6 +931,7 @@ public class PrevizService {
 		}
 		
 		// Шаг 3: Обогащаем JSON и генерируем prompt
+		log.info("Starting Flux prompt generation from base JSON...");
 		SceneToFluxPromptService.FluxPromptResult result = 
 				sceneToFluxPromptService.generateFromSceneJson(baseJson);
 		
@@ -940,7 +948,10 @@ public class PrevizService {
 		visual.setStatus(VisualStatus.PROMPT_READY);
 		sceneVisualRepository.save(visual);
 		
-		log.info("Enrichment pipeline completed for sceneId={}", sceneId);
+		log.info("=== Enrichment pipeline completed for sceneId={} ===", sceneId);
+		log.info("Final prompt length: {} chars", result.prompt().length());
+		log.info("Final prompt preview: {}", 
+				result.prompt().length() > 200 ? result.prompt().substring(0, 200) + "..." : result.prompt());
 		return result;
 	}
 

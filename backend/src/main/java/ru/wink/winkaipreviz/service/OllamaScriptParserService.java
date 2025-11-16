@@ -194,7 +194,39 @@ CHUNK TEXT (RUSSIAN SCREENPLAY):
         }
 
         // Возвращаем первый элемент массива как JSON строку
-        return mapper.writeValueAsString(root.get(0));
+        String baseJson = mapper.writeValueAsString(root.get(0));
+        
+        log.info("Parsed scene text to base JSON successfully");
+        log.debug("Base JSON:\n{}", baseJson);
+        
+        // Логируем ключевые поля для быстрой диагностики
+        try {
+            JsonNode sceneNode = root.get(0);
+            if (sceneNode.has("slugline_raw")) {
+                log.info("Parsed slugline_raw: '{}'", sceneNode.get("slugline_raw").asText());
+            }
+            if (sceneNode.has("location")) {
+                JsonNode locationNode = sceneNode.get("location");
+                if (locationNode.isObject() && locationNode.has("raw")) {
+                    log.info("Parsed location.raw: '{}'", locationNode.get("raw").asText());
+                }
+            }
+            if (sceneNode.has("characters")) {
+                JsonNode charsNode = sceneNode.get("characters");
+                if (charsNode.isArray()) {
+                    log.info("Parsed characters count: {}", charsNode.size());
+                    for (int i = 0; i < Math.min(charsNode.size(), 3); i++) {
+                        JsonNode charNode = charsNode.get(i);
+                        String charName = charNode.has("name") ? charNode.get("name").asText() : "N/A";
+                        log.debug("  Character {}: name='{}'", i + 1, charName);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to parse base JSON for diagnostic logging: {}", e.getMessage());
+        }
+        
+        return baseJson;
     }
 
     /**
