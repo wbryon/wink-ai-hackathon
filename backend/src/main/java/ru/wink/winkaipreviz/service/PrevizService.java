@@ -24,6 +24,7 @@ import ru.wink.winkaipreviz.repository.SceneVisualRepository;
 import ru.wink.winkaipreviz.entity.SceneVisualEntity;
 import ru.wink.winkaipreviz.entity.VisualStatus;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -916,12 +917,41 @@ public class PrevizService {
 		// Шаг 2: Парсим текст сцены в JSON через Ollama
 		String baseJson;
 		if (scene.getOriginalJson() != null && !scene.getOriginalJson().isBlank()) {
-			// Используем сохраненный JSON, если есть
-			baseJson = scene.getOriginalJson();
-			log.info("Using cached base JSON for sceneId={}", sceneId);
-			log.info("Base JSON (first 1000 chars): {}", 
-					baseJson.length() > 1000 ? baseJson.substring(0, 1000) + "..." : baseJson);
-			log.debug("Full cached base JSON:\n{}", baseJson);
+			// Проверяем валидность сохраненного JSON
+			boolean isValidJson = false;
+			try {
+				JsonNode cachedNode = objectMapper.readTree(scene.getOriginalJson());
+				// Проверяем наличие обязательных полей сцены
+				// Правильный base JSON должен содержать slugline_raw или location
+				if (cachedNode.has("slugline_raw") || cachedNode.has("location") || 
+				    (cachedNode.has("scene_id") && cachedNode.has("text_excerpt"))) {
+					isValidJson = true;
+				} else {
+					log.warn("Cached base JSON for sceneId={} appears invalid (missing required fields), will reparse", sceneId);
+					log.debug("Invalid cached JSON: {}", scene.getOriginalJson());
+				}
+			} catch (Exception e) {
+				log.warn("Cached base JSON for sceneId={} is not valid JSON, will reparse: {}", sceneId, e.getMessage());
+			}
+			
+			if (isValidJson) {
+				// Используем сохраненный JSON, если он валидный
+				baseJson = scene.getOriginalJson();
+				log.info("Using cached base JSON for sceneId={}", sceneId);
+				log.info("Base JSON (first 1000 chars): {}", 
+						baseJson.length() > 1000 ? baseJson.substring(0, 1000) + "..." : baseJson);
+				log.debug("Full cached base JSON:\n{}", baseJson);
+			} else {
+				// Перепарсиваем, если JSON невалидный
+				log.info("Reparsing scene text to base JSON (invalid cached JSON detected)...");
+				baseJson = ollamaScriptParserService.parseSceneTextToJson(sceneText);
+				// Сохраняем новый base JSON в сцену
+				scene.setOriginalJson(baseJson);
+				sceneRepository.save(scene);
+				log.info("Reparsed scene text to JSON for sceneId={}", sceneId);
+				log.info("Base JSON (first 1000 chars): {}", 
+						baseJson.length() > 1000 ? baseJson.substring(0, 1000) + "..." : baseJson);
+			}
 		} else {
 			// Парсим текст сцены в JSON
 			log.info("Parsing scene text to base JSON...");

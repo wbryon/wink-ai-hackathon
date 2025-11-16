@@ -185,39 +185,69 @@ CHUNK TEXT (RUSSIAN SCREENPLAY):
             throw new IllegalStateException("LLM returned empty response for scene text after cleaning");
         }
 
-        // Извлекаем JSON массив
+        // Извлекаем JSON - может быть массив или объект
         String candidate = raw.trim();
-        int start = candidate.indexOf('[');
-        int end = candidate.lastIndexOf(']');
+        int arrayStart = candidate.indexOf('[');
+        int arrayEnd = candidate.lastIndexOf(']');
+        int objectStart = candidate.indexOf('{');
+        int objectEnd = candidate.lastIndexOf('}');
 
-        if (start == -1 || end == -1 || end <= start) {
-            log.error("LLM did not return a JSON array. Raw response (first 1000 chars): {}", 
+        JsonNode root;
+        
+        // Сначала пытаемся найти массив
+        if (arrayStart != -1 && arrayEnd != -1 && arrayEnd > arrayStart) {
+            candidate = candidate.substring(arrayStart, arrayEnd + 1).trim();
+            log.debug("Extracted JSON array candidate (length: {} chars)", candidate.length());
+            
+            try {
+                root = mapper.readTree(candidate);
+            } catch (Exception e) {
+                log.error("Failed to parse JSON array. Candidate (first 1000 chars): {}", 
+                        candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate, e);
+                throw new IllegalStateException("Failed to parse JSON array: " + e.getMessage() + 
+                        ". Response preview: " + (candidate.length() > 500 ? candidate.substring(0, 500) + "..." : candidate));
+            }
+            
+            if (!root.isArray()) {
+                log.warn("Extracted JSON is not an array, trying to parse as object and wrap in array");
+                // Попробуем распарсить как объект и обернуть в массив
+                JsonNode objNode = mapper.readTree(candidate);
+                root = mapper.createArrayNode().add(objNode);
+            }
+        } 
+        // Если массив не найден, пытаемся найти объект и обернуть его в массив
+        else if (objectStart != -1 && objectEnd != -1 && objectEnd > objectStart) {
+            candidate = candidate.substring(objectStart, objectEnd + 1).trim();
+            log.debug("LLM returned JSON object instead of array, wrapping in array. Object (length: {} chars)", candidate.length());
+            log.debug("Extracted JSON object candidate (first 1000 chars): {}", 
                     candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate);
-            throw new IllegalStateException("LLM did not return a JSON array. Response: " + 
+            
+            try {
+                JsonNode objNode = mapper.readTree(candidate);
+                // Оборачиваем объект в массив
+                root = mapper.createArrayNode().add(objNode);
+                log.info("Successfully wrapped JSON object in array");
+            } catch (Exception e) {
+                log.error("Failed to parse JSON object. Candidate (first 1000 chars): {}", 
+                        candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate, e);
+                throw new IllegalStateException("Failed to parse JSON object: " + e.getMessage() + 
+                        ". Response preview: " + (candidate.length() > 500 ? candidate.substring(0, 500) + "..." : candidate));
+            }
+        } else {
+            log.error("LLM did not return valid JSON (neither array nor object). Raw response (first 1000 chars): {}", 
+                    candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate);
+            throw new IllegalStateException("LLM did not return valid JSON. Response: " + 
                     (candidate.length() > 500 ? candidate.substring(0, 500) + "..." : candidate));
         }
 
-        candidate = candidate.substring(start, end + 1).trim();
-        log.debug("Extracted JSON array candidate (length: {} chars)", candidate.length());
-
-        JsonNode root;
-        try {
-            root = mapper.readTree(candidate);
-        } catch (Exception e) {
-            log.error("Failed to parse JSON array. Candidate (first 1000 chars): {}", 
-                    candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate, e);
-            throw new IllegalStateException("Failed to parse JSON array: " + e.getMessage() + 
-                    ". Response preview: " + (candidate.length() > 500 ? candidate.substring(0, 500) + "..." : candidate));
-        }
-
         if (!root.isArray()) {
-            log.error("LLM returned non-array JSON. Type: {}, Content (first 500 chars): {}", 
+            log.error("Root is not an array after processing. Type: {}, Content (first 500 chars): {}", 
                     root.getNodeType(), root.toString().length() > 500 ? root.toString().substring(0, 500) + "..." : root.toString());
-            throw new IllegalStateException("LLM did not return a JSON array, got: " + root.getNodeType());
+            throw new IllegalStateException("Failed to create JSON array, got: " + root.getNodeType());
         }
 
         if (root.size() == 0) {
-            log.error("LLM returned empty array. Full candidate: {}", candidate);
+            log.error("Resulting array is empty. Original candidate: {}", candidate);
             throw new IllegalStateException("LLM did not return an array with at least one scene (array is empty)");
         }
 
