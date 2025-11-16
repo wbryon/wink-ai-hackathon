@@ -216,14 +216,26 @@ const FrameViewer = ({ scenes: initialScenes, scriptId }) => {
         setGenerationPath('progressive');
       }
       
-      // Обновляем сцену с новым кадром
-      const updatedScenes = [...scenes];
-      updatedScenes[currentSceneIndex] = {
-        ...currentScene,
-        currentFrame: response,
-        generatedFrames: [...(currentScene.generatedFrames || []), response],
-      };
-      setScenes(updatedScenes);
+      // Перезагружаем список сцен из API, чтобы получить актуальные данные с кадрами
+      if (scriptId) {
+        const updatedScenes = await getScenes(scriptId);
+        if (updatedScenes && updatedScenes.length > 0) {
+          setScenes(updatedScenes);
+          // Обновляем текущую сцену, если индекс не изменился
+          if (updatedScenes[currentSceneIndex] && updatedScenes[currentSceneIndex].id === currentScene.id) {
+            // currentScene уже обновлен через setScenes
+          }
+        }
+      } else {
+        // Fallback: обновляем локальное состояние, если scriptId нет
+        const updatedScenes = [...scenes];
+        updatedScenes[currentSceneIndex] = {
+          ...currentScene,
+          currentFrame: response,
+          generatedFrames: [...(currentScene.generatedFrames || []), response],
+        };
+        setScenes(updatedScenes);
+      }
       
       // Обновляем историю
       await loadFrameHistory();
@@ -249,13 +261,22 @@ const FrameViewer = ({ scenes: initialScenes, scriptId }) => {
         currentPath
       );
       
-      const updatedScenes = [...scenes];
-      updatedScenes[currentSceneIndex] = {
-        ...currentScene,
-        currentFrame: response,
-        prompt: promptText,
-      };
-      setScenes(updatedScenes);
+      // Перезагружаем список сцен из API, чтобы получить актуальные данные с кадрами
+      if (scriptId) {
+        const updatedScenes = await getScenes(scriptId);
+        if (updatedScenes && updatedScenes.length > 0) {
+          setScenes(updatedScenes);
+        }
+      } else {
+        // Fallback: обновляем локальное состояние
+        const updatedScenes = [...scenes];
+        updatedScenes[currentSceneIndex] = {
+          ...currentScene,
+          currentFrame: response,
+          prompt: promptText,
+        };
+        setScenes(updatedScenes);
+      }
       setEditingPrompt(false);
       
       await loadFrameHistory();

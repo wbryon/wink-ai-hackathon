@@ -11,7 +11,7 @@ import {
   Save,
   X
 } from 'lucide-react';
-import { updateScene, deleteScene, addScene, generateFrame, refineScene, enrichScene, getScenes } from '../api/apiClient';
+import { updateScene, deleteScene, addScene, generateFrame, refineScene, enrichScene, getScenes, getSceneVisual } from '../api/apiClient';
 import { Sparkles } from 'lucide-react';
 
 const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
@@ -24,6 +24,8 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
   const [refining, setRefining] = useState({}); // per-scene refine loading
   const [enriching, setEnriching] = useState({}); // per-scene enrichment loading
   const [showSceneText, setShowSceneText] = useState({}); // per-scene text visibility
+  const [scenePrompts, setScenePrompts] = useState({}); // per-scene prompts from enrichment pipeline
+  const [showPrompts, setShowPrompts] = useState({}); // per-scene prompt visibility
   const [scenesLoading, setScenesLoading] = useState(false);
 
   // Загрузить сцены из API, если они не переданы или пустые
@@ -43,6 +45,25 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
           const loadedScenes = await getScenes(scriptId);
           if (loadedScenes && loadedScenes.length > 0) {
             setScenes(loadedScenes);
+            
+            // Загружаем промпты для всех сцен, у которых они могут быть
+            const promptsToLoad = {};
+            for (const scene of loadedScenes) {
+              if (scene.id) {
+                try {
+                  const visualData = await getSceneVisual(scene.id);
+                  if (visualData && visualData.fluxPrompt) {
+                    promptsToLoad[scene.id] = visualData.fluxPrompt;
+                  }
+                } catch (error) {
+                  // Игнорируем ошибки загрузки визуальных данных для отдельных сцен
+                  console.debug(`No visual data for scene ${scene.id}`);
+                }
+              }
+            }
+            if (Object.keys(promptsToLoad).length > 0) {
+              setScenePrompts(prev => ({ ...prev, ...promptsToLoad }));
+            }
           }
         } catch (error) {
           console.error('Error loading scenes:', error);
@@ -190,7 +211,29 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
       setEnriching(prev => ({ ...prev, [index]: true }));
       const result = await enrichScene(sceneId);
       if (result.success) {
-        alert('Пайплайн обогащения успешно завершен! Enriched JSON и prompt готовы для генерации.');
+        // Перезагружаем список сцен, чтобы получить обновленные данные
+        if (scriptId) {
+          const updatedScenes = await getScenes(scriptId);
+          if (updatedScenes && updatedScenes.length > 0) {
+            setScenes(updatedScenes);
+          }
+        }
+        
+        // Получаем визуальные данные сцены для отображения промпта
+        try {
+          const visualData = await getSceneVisual(sceneId);
+          if (visualData && visualData.fluxPrompt) {
+            setScenePrompts(prev => ({ ...prev, [sceneId]: visualData.fluxPrompt }));
+            setShowPrompts(prev => ({ ...prev, [sceneId]: true })); // Автоматически показываем промпт
+          }
+        } catch (visualError) {
+          console.warn('Could not load visual data for scene:', visualError);
+          // Если не удалось загрузить визуальные данные, используем промпт из результата
+          if (result.prompt) {
+            setScenePrompts(prev => ({ ...prev, [sceneId]: result.prompt }));
+            setShowPrompts(prev => ({ ...prev, [sceneId]: true }));
+          }
+        }
       } else {
         alert('Ошибка при запуске пайплайна обогащения: ' + (result.error || 'Неизвестная ошибка'));
       }
@@ -493,6 +536,29 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
                             <p className="text-xs text-gray-500 mt-1 text-center">
                               scene text → ollama → json → ollama → enriched json → ollama → prompt
                             </p>
+                            
+                            {/* Отображение промпта после пайплайна обогащения */}
+                            {scenePrompts[scene.id] && (
+                              <div className="mt-3 p-3 bg-wink-black/50 rounded-lg border border-wink-gray/30">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <Sparkles className="w-4 h-4 text-green-400" />
+                                    <span className="text-xs font-bold text-green-400">Промпт готов</span>
+                                  </div>
+                                  <button
+                                    onClick={() => setShowPrompts(prev => ({ ...prev, [scene.id]: !prev[scene.id] }))}
+                                    className="text-xs text-wink-orange hover:text-wink-orange-light transition-colors"
+                                  >
+                                    {showPrompts[scene.id] ? 'Скрыть' : 'Показать'}
+                                  </button>
+                                </div>
+                                {showPrompts[scene.id] && (
+                                  <div className="mt-2 p-3 bg-wink-dark rounded text-xs text-gray-300 whitespace-pre-wrap max-h-48 overflow-y-auto">
+                                    {scenePrompts[scene.id]}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
 
                           {/* Быстрая текстовая правка */}
