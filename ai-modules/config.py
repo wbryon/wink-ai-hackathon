@@ -31,12 +31,12 @@ COMFY_BASE_URL = os.getenv("COMFY_BASE_URL", f"http://{COMFY_HOST}:{COMFY_PORT}"
 # Директория, где лежат сохранённые из ComfyUI workflow'ы (Save → Save (API Format))
 WORKFLOWS_DIR = Path(os.getenv("WORKFLOWS_DIR", "./workflows"))
 
-# Основной workflow для text2img — теперь используем wink.json
+# Основной workflow для text2img — теперь используем flux_schnell.json
 # (экспортированный из ComfyUI в формате Save (API Format))
-TEXT2IMG_WORKFLOW_PATH = WORKFLOWS_DIR / "wink.json"
+TEXT2IMG_WORKFLOW_PATH = WORKFLOWS_DIR / "flux_schnell.json"
 
 # Img2img по‑прежнему может использовать отдельный workflow (при необходимости можно
-# также перенести на wink.json или другой файл через переменные окружения).
+# также перенести на flux_schnell.json или другой файл через переменные окружения).
 IMG2IMG_WORKFLOW_PATH = WORKFLOWS_DIR / "img2img.json"
 
 # LOD Profiles configuration (оставил как у тебя)

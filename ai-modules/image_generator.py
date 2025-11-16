@@ -20,7 +20,7 @@ from config import (
     STORAGE_DIR,
     IMAGE_URL_BASE,
 )
-from comfy_client import run_text2img as comfy_text2img, run_img2img as comfy_img2img
+import comfy_client
 
 LOG = logging.getLogger("image_generator")
 
@@ -70,7 +70,7 @@ def generate_text2img(
     )
 
     # Генерация через ComfyUI
-    image_bytes = comfy_text2img(
+    image_bytes = comfy_client.run_text2img(
         prompt=prompt,
         negative_prompt=negative_prompt,
         steps=final_steps,
@@ -147,7 +147,7 @@ def generate_img2img(
         f"denoise={denoise_strength}, sampler={final_sampler}, seed={seed}"
     )
 
-    image_bytes = comfy_img2img(
+    image_bytes = comfy_client.run_img2img(
         prompt=prompt,
         negative_prompt=negative_prompt,
         init_image_path_or_url=init_image_path,
