@@ -204,7 +204,9 @@ public class PrevizService {
 	@Transactional(readOnly = true)
 	public List<SceneDto> getScenes(String scriptIdStr) {
 		UUID scriptId = UUID.fromString(scriptIdStr);
-		List<Scene> scenes = sceneRepository.findByScript_Id(scriptId);
+		// Важно: возвращаем сцены в стабильном порядке от первой к последней.
+		// Используем createdAt ASC, который соответствует порядку парсинга/загрузки.
+		List<Scene> scenes = sceneRepository.findByScript_IdOrderByCreatedAtAsc(scriptId);
 		List<SceneDto> result = new ArrayList<>();
 		for (Scene s : scenes) {
 			result.add(mapSceneWithFrames(s));
@@ -1069,17 +1071,47 @@ public class PrevizService {
 		}
 		
 		ru.wink.winkaipreviz.ai.ImageResult ai = aiImageClient.generate(prompt, level);
+
+		// Безопасно разбираем результат генерации, так как отдельные поля могут быть null
+		Integer seed = null;
+		String model = null;
+		String imageUrl = null;
+		String metaJson = null;
+
+		if (ai != null) {
+			seed = ai.seed();
+			model = ai.model();
+			imageUrl = ai.imageUrl();
+			metaJson = ai.metaJson();
+		}
+
+		if (seed == null) {
+			// Если seed не пришел от AI-сервиса, используем предсказуемый fallback,
+			// чтобы не ломать setSeed() авто-боксингом/анбоксингом
+			seed = 12345;
+			log.warn("AI image result returned null seed for frame regeneration, using fallback seed=12345, frameId={}, sceneId={}",
+					frameId, sceneId);
+		}
+
+		if (model == null || model.isBlank()) {
+			model = "unknown";
+		}
+
+		if (imageUrl == null || imageUrl.isBlank()) {
+			imageUrl = "http://localhost:8000/mock_" + level.name().toLowerCase() + ".png";
+		}
+
 		Frame newFrame = new Frame();
 		newFrame.setScene(scene);
 		newFrame.setDetailLevel(level);
-		// регенерация считаем прогрессивным путём
+		// регенерацию считаем прогрессивным путём
 		newFrame.setGenerationPath(GenerationPath.PROGRESSIVE);
 		newFrame.setPrompt(prompt);
-		newFrame.setSeed(ai != null ? ai.seed() : 12345);
-		newFrame.setModel(ai != null ? ai.model() : "unknown");
-		newFrame.setImageUrl(ai != null ? ai.imageUrl() : ("http://localhost:8000/mock_" + level.name().toLowerCase() + ".png"));
-		if (ai != null && ai.metaJson() != null && !ai.metaJson().isBlank()) {
-			newFrame.setEnrichedJson(ai.metaJson());
+		newFrame.setSeed(seed);
+		newFrame.setModel(model);
+		newFrame.setImageUrl(imageUrl);
+		if (metaJson != null && !metaJson.isBlank()) {
+			newFrame.setEnrichedJson(metaJson);
 		}
 		newFrame = frameRepository.save(newFrame);
 		log.info("Regenerated frame: newFrameId={}, baseFrameId={}, sceneId={}, level={}", newFrame.getId(), frameId, sceneId, level);
