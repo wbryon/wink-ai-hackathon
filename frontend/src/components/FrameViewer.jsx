@@ -381,7 +381,6 @@ const FrameViewer = ({ scenes: initialScenes, scriptId }) => {
     galleryLodFilter === 'all' ? true : card.lod === galleryLodFilter
   );
 
-  // Начать редактирование промпта.
   // В приоритете используем фактический промпт кадра,
   // который уже был отправлен в ComfyUI при последней генерации.
   const startEditingPrompt = () => {
