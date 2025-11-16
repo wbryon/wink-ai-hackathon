@@ -104,32 +104,47 @@ public class SceneToFluxPromptService {
         String enrichedJson = mapper.writeValueAsString(root);
         
         log.info("Enriched JSON generated successfully");
-        log.debug("Enriched JSON:\n{}", enrichedJson);
+        log.info("Enriched JSON (first 1500 chars): {}", 
+                enrichedJson.length() > 1500 ? enrichedJson.substring(0, 1500) + "..." : enrichedJson);
+        log.debug("Full enriched JSON:\n{}", enrichedJson);
         
         // Логируем ключевые поля для быстрой диагностики
         try {
             JsonNode enrichedNode = mapper.readTree(enrichedJson);
+            
+            // Логируем slugline_raw, если есть
+            if (enrichedNode.has("slugline_raw")) {
+                log.info("Enriched slugline_raw: '{}'", enrichedNode.get("slugline_raw").asText());
+            }
+            
             if (enrichedNode.has("location")) {
                 JsonNode locationNode = enrichedNode.get("location");
                 if (locationNode.isObject()) {
                     String locationRaw = locationNode.has("raw") ? locationNode.get("raw").asText() : "N/A";
                     String locationNorm = locationNode.has("norm") ? locationNode.get("norm").asText() : "N/A";
-                    log.info("Enriched location: raw='{}', norm='{}'", locationRaw, locationNorm);
+                    String locationDesc = locationNode.has("description") ? locationNode.get("description").asText() : "N/A";
+                    log.info("Enriched location: raw='{}', norm='{}', description='{}'", 
+                            locationRaw, locationNorm, 
+                            locationDesc.length() > 100 ? locationDesc.substring(0, 100) + "..." : locationDesc);
                 }
             }
             if (enrichedNode.has("characters")) {
                 JsonNode charsNode = enrichedNode.get("characters");
                 if (charsNode.isArray()) {
                     log.info("Enriched characters count: {}", charsNode.size());
-                    for (int i = 0; i < Math.min(charsNode.size(), 3); i++) {
+                    for (int i = 0; i < Math.min(charsNode.size(), 5); i++) {
                         JsonNode charNode = charsNode.get(i);
                         String charName = charNode.has("name") ? charNode.get("name").asText() : "N/A";
-                        log.debug("  Character {}: name='{}'", i + 1, charName);
+                        log.info("  Character {}: name='{}'", i + 1, charName);
                     }
+                } else {
+                    log.warn("Enriched JSON has 'characters' field but it's not an array: {}", charsNode.getNodeType());
                 }
+            } else {
+                log.warn("Enriched JSON does not have 'characters' field");
             }
         } catch (Exception e) {
-            log.warn("Failed to parse enriched JSON for diagnostic logging: {}", e.getMessage());
+            log.warn("Failed to parse enriched JSON for diagnostic logging: {}", e.getMessage(), e);
         }
         
         return enrichedJson;

@@ -919,7 +919,9 @@ public class PrevizService {
 			// Используем сохраненный JSON, если есть
 			baseJson = scene.getOriginalJson();
 			log.info("Using cached base JSON for sceneId={}", sceneId);
-			log.debug("Cached base JSON:\n{}", baseJson);
+			log.info("Base JSON (first 1000 chars): {}", 
+					baseJson.length() > 1000 ? baseJson.substring(0, 1000) + "..." : baseJson);
+			log.debug("Full cached base JSON:\n{}", baseJson);
 		} else {
 			// Парсим текст сцены в JSON
 			log.info("Parsing scene text to base JSON...");
@@ -928,6 +930,8 @@ public class PrevizService {
 			scene.setOriginalJson(baseJson);
 			sceneRepository.save(scene);
 			log.info("Parsed scene text to JSON for sceneId={}", sceneId);
+			log.info("Base JSON (first 1000 chars): {}", 
+					baseJson.length() > 1000 ? baseJson.substring(0, 1000) + "..." : baseJson);
 		}
 		
 		// Шаг 3: Обогащаем JSON и генерируем prompt
