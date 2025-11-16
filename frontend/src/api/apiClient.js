@@ -103,6 +103,18 @@ export const uploadScript = async (file) => {
 };
 
 /**
+ * Получение статуса парсинга сценария
+ * @param {string} scriptId - ID сценария
+ * @returns {Promise} - Промис со статусом парсинга
+ */
+export const getScriptStatus = async (scriptId) => {
+  return maybeFallback(
+    async () => (await apiClient.get(`/scripts/${scriptId}/status`)).data,
+    async () => ({ scriptStatus: 'PARSED', totalScenes: 0, parsedScenes: 0, completionPercent: 100 })
+  );
+};
+
+/**
  * Получение списка сцен из обработанного сценария
  * @param {string} scriptId - ID сценария
  * @returns {Promise} - Промис со списком сцен

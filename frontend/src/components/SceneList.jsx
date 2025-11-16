@@ -26,6 +26,8 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
   const [showSceneText, setShowSceneText] = useState({}); // per-scene text visibility
   const [scenePrompts, setScenePrompts] = useState({}); // per-scene prompts from enrichment pipeline
   const [showPrompts, setShowPrompts] = useState({}); // per-scene prompt visibility
+  const [sceneEnrichedJson, setSceneEnrichedJson] = useState({}); // per-scene enriched JSON from enrichment pipeline
+  const [showEnrichedJson, setShowEnrichedJson] = useState({}); // per-scene enriched JSON visibility
   const [scenesLoading, setScenesLoading] = useState(false);
 
   // Загрузить сцены из API, если они не переданы или пустые
@@ -46,14 +48,20 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
           if (loadedScenes && loadedScenes.length > 0) {
             setScenes(loadedScenes);
             
-            // Загружаем промпты для всех сцен, у которых они могут быть
+            // Загружаем промпты и enriched JSON для всех сцен, у которых они могут быть
             const promptsToLoad = {};
+            const enrichedJsonToLoad = {};
             for (const scene of loadedScenes) {
               if (scene.id) {
                 try {
                   const visualData = await getSceneVisual(scene.id);
-                  if (visualData && visualData.fluxPrompt) {
-                    promptsToLoad[scene.id] = visualData.fluxPrompt;
+                  if (visualData) {
+                    if (visualData.fluxPrompt) {
+                      promptsToLoad[scene.id] = visualData.fluxPrompt;
+                    }
+                    if (visualData.enrichedJson) {
+                      enrichedJsonToLoad[scene.id] = visualData.enrichedJson;
+                    }
                   }
                 } catch (error) {
                   // Игнорируем ошибки загрузки визуальных данных для отдельных сцен
@@ -63,6 +71,9 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
             }
             if (Object.keys(promptsToLoad).length > 0) {
               setScenePrompts(prev => ({ ...prev, ...promptsToLoad }));
+            }
+            if (Object.keys(enrichedJsonToLoad).length > 0) {
+              setSceneEnrichedJson(prev => ({ ...prev, ...enrichedJsonToLoad }));
             }
           }
         } catch (error) {
@@ -219,19 +230,29 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
           }
         }
         
-        // Получаем визуальные данные сцены для отображения промпта
+        // Получаем визуальные данные сцены для отображения промпта и enriched JSON
         try {
           const visualData = await getSceneVisual(sceneId);
-          if (visualData && visualData.fluxPrompt) {
-            setScenePrompts(prev => ({ ...prev, [sceneId]: visualData.fluxPrompt }));
-            setShowPrompts(prev => ({ ...prev, [sceneId]: true })); // Автоматически показываем промпт
+          if (visualData) {
+            if (visualData.fluxPrompt) {
+              setScenePrompts(prev => ({ ...prev, [sceneId]: visualData.fluxPrompt }));
+              setShowPrompts(prev => ({ ...prev, [sceneId]: true })); // Автоматически показываем промпт
+            }
+            if (visualData.enrichedJson) {
+              setSceneEnrichedJson(prev => ({ ...prev, [sceneId]: visualData.enrichedJson }));
+              setShowEnrichedJson(prev => ({ ...prev, [sceneId]: false })); // По умолчанию скрыт
+            }
           }
         } catch (visualError) {
           console.warn('Could not load visual data for scene:', visualError);
-          // Если не удалось загрузить визуальные данные, используем промпт из результата
+          // Если не удалось загрузить визуальные данные, используем данные из результата
           if (result.prompt) {
             setScenePrompts(prev => ({ ...prev, [sceneId]: result.prompt }));
             setShowPrompts(prev => ({ ...prev, [sceneId]: true }));
+          }
+          if (result.enrichedJson) {
+            setSceneEnrichedJson(prev => ({ ...prev, [sceneId]: result.enrichedJson }));
+            setShowEnrichedJson(prev => ({ ...prev, [sceneId]: false }));
           }
         }
       } else {
@@ -537,24 +558,63 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
                               scene text → ollama → json → ollama → enriched json → ollama → prompt
                             </p>
                             
-                            {/* Отображение промпта после пайплайна обогащения */}
-                            {scenePrompts[scene.id] && (
-                              <div className="mt-3 p-3 bg-wink-black/50 rounded-lg border border-wink-gray/30">
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center gap-2">
-                                    <Sparkles className="w-4 h-4 text-green-400" />
-                                    <span className="text-xs font-bold text-green-400">Промпт готов</span>
+                            {/* Отображение результатов пайплайна обогащения */}
+                            {(scenePrompts[scene.id] || sceneEnrichedJson[scene.id]) && (
+                              <div className="mt-3 space-y-3">
+                                {/* 1. Enriched JSON */}
+                                {sceneEnrichedJson[scene.id] && (
+                                  <div className="p-3 bg-wink-black/50 rounded-lg border border-wink-gray/30">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <div className="flex items-center gap-2">
+                                        <Sparkles className="w-4 h-4 text-blue-400" />
+                                        <span className="text-xs font-bold text-blue-400">1. Enriched JSON</span>
+                                      </div>
+                                      <button
+                                        onClick={() => setShowEnrichedJson(prev => ({ ...prev, [scene.id]: !prev[scene.id] }))}
+                                        className="text-xs text-wink-orange hover:text-wink-orange-light transition-colors"
+                                      >
+                                        {showEnrichedJson[scene.id] ? 'Скрыть' : 'Показать'}
+                                      </button>
+                                    </div>
+                                    {showEnrichedJson[scene.id] && (
+                                      <div className="mt-2 p-3 bg-wink-dark rounded text-xs text-gray-300 max-h-64 overflow-y-auto">
+                                        <pre className="whitespace-pre-wrap font-mono text-xs">
+                                          {(() => {
+                                            try {
+                                              const json = typeof sceneEnrichedJson[scene.id] === 'string' 
+                                                ? JSON.parse(sceneEnrichedJson[scene.id]) 
+                                                : sceneEnrichedJson[scene.id];
+                                              return JSON.stringify(json, null, 2);
+                                            } catch (e) {
+                                              return sceneEnrichedJson[scene.id];
+                                            }
+                                          })()}
+                                        </pre>
+                                      </div>
+                                    )}
                                   </div>
-                                  <button
-                                    onClick={() => setShowPrompts(prev => ({ ...prev, [scene.id]: !prev[scene.id] }))}
-                                    className="text-xs text-wink-orange hover:text-wink-orange-light transition-colors"
-                                  >
-                                    {showPrompts[scene.id] ? 'Скрыть' : 'Показать'}
-                                  </button>
-                                </div>
-                                {showPrompts[scene.id] && (
-                                  <div className="mt-2 p-3 bg-wink-dark rounded text-xs text-gray-300 whitespace-pre-wrap max-h-48 overflow-y-auto">
-                                    {scenePrompts[scene.id]}
+                                )}
+                                
+                                {/* 2. Flux Prompt */}
+                                {scenePrompts[scene.id] && (
+                                  <div className="p-3 bg-wink-black/50 rounded-lg border border-wink-gray/30">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <div className="flex items-center gap-2">
+                                        <Sparkles className="w-4 h-4 text-green-400" />
+                                        <span className="text-xs font-bold text-green-400">2. Flux Prompt</span>
+                                      </div>
+                                      <button
+                                        onClick={() => setShowPrompts(prev => ({ ...prev, [scene.id]: !prev[scene.id] }))}
+                                        className="text-xs text-wink-orange hover:text-wink-orange-light transition-colors"
+                                      >
+                                        {showPrompts[scene.id] ? 'Скрыть' : 'Показать'}
+                                      </button>
+                                    </div>
+                                    {showPrompts[scene.id] && (
+                                      <div className="mt-2 p-3 bg-wink-dark rounded text-xs text-gray-300 whitespace-pre-wrap max-h-48 overflow-y-auto">
+                                        {scenePrompts[scene.id]}
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </div>

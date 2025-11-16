@@ -67,12 +67,37 @@ public class SceneToFluxPromptService {
      * Шаг 1: LLM-энрихер — из base JSON делает enriched JSON по твоей spec.
      */
     private String enhanceScene(String sceneJson) throws Exception {
-        log.info("--- Step 1: Enhancing scene JSON ---");
-        log.debug("Input base JSON:\n{}", sceneJson);
+        log.info("=== [ENRICHMENT] Step 1: Enhancing base JSON → enriched JSON ===");
+        log.info("[ENRICHMENT] Input base JSON length: {} chars", sceneJson.length());
+        log.debug("[ENRICHMENT] Input base JSON:\n{}", sceneJson);
+        
+        // Логируем ключевые поля base JSON для сравнения
+        try {
+            JsonNode baseNode = mapper.readTree(sceneJson);
+            if (baseNode.has("slugline_raw")) {
+                log.info("[ENRICHMENT] Base JSON slugline_raw: '{}'", baseNode.get("slugline_raw").asText());
+            }
+            if (baseNode.has("location")) {
+                JsonNode locNode = baseNode.get("location");
+                if (locNode.isObject() && locNode.has("raw")) {
+                    log.info("[ENRICHMENT] Base JSON location.raw: '{}'", locNode.get("raw").asText());
+                }
+            }
+            if (baseNode.has("characters")) {
+                JsonNode charsNode = baseNode.get("characters");
+                if (charsNode.isArray()) {
+                    log.info("[ENRICHMENT] Base JSON characters count: {}", charsNode.size());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("[ENRICHMENT] Failed to parse base JSON for logging: {}", e.getMessage());
+        }
 
         String fullPrompt = enhancerSystemPrompt
                 + "\n\nHere is the scene JSON:\n"
                 + sceneJson;
+        
+        log.info("[ENRICHMENT] Calling LLM to enrich JSON (prompt length: {} chars)", fullPrompt.length());
 
         // Повторные попытки с увеличением num_predict при неполном JSON
         int[] numPredictValues = {2000, 3000, 4000}; // Увеличиваем лимит токенов при повторах
@@ -135,18 +160,20 @@ public class SceneToFluxPromptService {
                 // Нормализуем JSON (убираем лишние пробелы/форматирование)
                 String enrichedJson = mapper.writeValueAsString(root);
                 
-                log.info("Enriched JSON generated successfully on attempt {}", attempt + 1);
-                log.info("Enriched JSON (first 1500 chars): {}", 
+                log.info("[ENRICHMENT] ✓ Enriched JSON generated successfully on attempt {}", attempt + 1);
+                log.info("[ENRICHMENT] Enriched JSON length: {} chars (base was {} chars)", 
+                        enrichedJson.length(), sceneJson.length());
+                log.info("[ENRICHMENT] Enriched JSON (first 1500 chars): {}", 
                         enrichedJson.length() > 1500 ? enrichedJson.substring(0, 1500) + "..." : enrichedJson);
-                log.debug("Full enriched JSON:\n{}", enrichedJson);
+                log.debug("[ENRICHMENT] Full enriched JSON:\n{}", enrichedJson);
                 
                 // Логируем ключевые поля для быстрой диагностики
                 try {
                     JsonNode enrichedNode = mapper.readTree(enrichedJson);
                     
-                    // Логируем slugline_raw, если есть
+                    // Логируем ключевые поля enriched JSON для сравнения с base
                     if (enrichedNode.has("slugline_raw")) {
-                        log.info("Enriched slugline_raw: '{}'", enrichedNode.get("slugline_raw").asText());
+                        log.info("[ENRICHMENT] ✓ Enriched slugline_raw: '{}'", enrichedNode.get("slugline_raw").asText());
                     }
                     
                     if (enrichedNode.has("location")) {
@@ -155,29 +182,52 @@ public class SceneToFluxPromptService {
                             String locationRaw = locationNode.has("raw") ? locationNode.get("raw").asText() : "N/A";
                             String locationNorm = locationNode.has("norm") ? locationNode.get("norm").asText() : "N/A";
                             String locationDesc = locationNode.has("description") ? locationNode.get("description").asText() : "N/A";
-                            log.info("Enriched location: raw='{}', norm='{}', description='{}'", 
-                                    locationRaw, locationNorm, 
-                                    locationDesc.length() > 100 ? locationDesc.substring(0, 100) + "..." : locationDesc);
+                            log.info("[ENRICHMENT] ✓ Enriched location: raw='{}', norm='{}'", locationRaw, locationNorm);
+                            log.info("[ENRICHMENT] ✓ Enriched location.description: '{}'", 
+                                    locationDesc.length() > 150 ? locationDesc.substring(0, 150) + "..." : locationDesc);
+                            if (locationNode.has("environment_details")) {
+                                JsonNode envDetails = locationNode.get("environment_details");
+                                if (envDetails.isArray()) {
+                                    log.info("[ENRICHMENT] ✓ Enriched location.environment_details count: {}", envDetails.size());
+                                }
+                            }
                         }
                     }
                     if (enrichedNode.has("characters")) {
                         JsonNode charsNode = enrichedNode.get("characters");
                         if (charsNode.isArray()) {
-                            log.info("Enriched characters count: {}", charsNode.size());
+                            log.info("[ENRICHMENT] ✓ Enriched characters count: {}", charsNode.size());
                             for (int i = 0; i < Math.min(charsNode.size(), 5); i++) {
                                 JsonNode charNode = charsNode.get(i);
                                 String charName = charNode.has("name") ? charNode.get("name").asText() : "N/A";
-                                log.info("  Character {}: name='{}'", i + 1, charName);
+                                String charRole = charNode.has("role") ? charNode.get("role").asText() : "N/A";
+                                log.info("[ENRICHMENT] ✓ Character {}: name='{}', role='{}'", i + 1, charName, charRole);
                             }
                         } else {
-                            log.warn("Enriched JSON has 'characters' field but it's not an array: {}", charsNode.getNodeType());
+                            log.warn("[ENRICHMENT] Enriched JSON has 'characters' field but it's not an array: {}", charsNode.getNodeType());
                         }
                     } else {
-                        log.warn("Enriched JSON does not have 'characters' field");
+                        log.warn("[ENRICHMENT] Enriched JSON does not have 'characters' field");
+                    }
+                    
+                    // Логируем дополнительные поля, которые появляются только в enriched JSON
+                    if (enrichedNode.has("camera")) {
+                        log.info("[ENRICHMENT] ✓ Enriched JSON contains 'camera' field");
+                    }
+                    if (enrichedNode.has("lighting")) {
+                        log.info("[ENRICHMENT] ✓ Enriched JSON contains 'lighting' field");
+                    }
+                    if (enrichedNode.has("mood")) {
+                        JsonNode moodNode = enrichedNode.get("mood");
+                        if (moodNode.isArray()) {
+                            log.info("[ENRICHMENT] ✓ Enriched mood: {}", moodNode.toString());
+                        }
                     }
                 } catch (Exception e) {
-                    log.warn("Failed to parse enriched JSON for diagnostic logging: {}", e.getMessage(), e);
+                    log.warn("[ENRICHMENT] Failed to parse enriched JSON for diagnostic logging: {}", e.getMessage(), e);
                 }
+                
+                log.info("[ENRICHMENT] === Step 1 completed: base JSON → enriched JSON ===");
                 
                 // Успешно распарсили JSON, выходим из цикла
                 return enrichedJson;
@@ -222,26 +272,70 @@ public class SceneToFluxPromptService {
      * Шаг 2: Prompt Builder — из enriched JSON делает длинный текст-промпт для Flux.
      */
     private String buildFluxPrompt(String enrichedJson) throws Exception {
-        log.info("--- Step 2: Building Flux prompt from enriched JSON ---");
-        log.debug("Input enriched JSON:\n{}", enrichedJson);
+        log.info("=== [PROMPT BUILD] Step 2: Building Flux prompt from enriched JSON ===");
+        log.info("[PROMPT BUILD] Input enriched JSON length: {} chars", enrichedJson.length());
+        log.debug("[PROMPT BUILD] Input enriched JSON:\n{}", enrichedJson);
+        
+        // Логируем ключевые поля enriched JSON, которые будут использованы для промпта
+        try {
+            JsonNode enrichedNode = mapper.readTree(enrichedJson);
+            if (enrichedNode.has("location")) {
+                JsonNode locNode = enrichedNode.get("location");
+                if (locNode.isObject() && locNode.has("description")) {
+                    log.info("[PROMPT BUILD] Using location.description: '{}'", 
+                            locNode.get("description").asText().length() > 100 
+                            ? locNode.get("description").asText().substring(0, 100) + "..." 
+                            : locNode.get("description").asText());
+                }
+            }
+            if (enrichedNode.has("characters")) {
+                JsonNode charsNode = enrichedNode.get("characters");
+                if (charsNode.isArray()) {
+                    log.info("[PROMPT BUILD] Using {} characters for prompt", charsNode.size());
+                }
+            }
+            if (enrichedNode.has("camera")) {
+                JsonNode cameraNode = enrichedNode.get("camera");
+                if (cameraNode.isObject()) {
+                    log.info("[PROMPT BUILD] Using camera settings for prompt");
+                }
+            }
+            if (enrichedNode.has("lighting")) {
+                JsonNode lightingNode = enrichedNode.get("lighting");
+                if (lightingNode.isObject()) {
+                    log.info("[PROMPT BUILD] Using lighting settings for prompt");
+                }
+            }
+        } catch (Exception e) {
+            log.warn("[PROMPT BUILD] Failed to parse enriched JSON for logging: {}", e.getMessage());
+        }
 
         String fullPrompt = promptBuilderSystemPrompt
                 + "\n\nHere is the enriched JSON:\n"
                 + enrichedJson;
+        
+        log.info("[PROMPT BUILD] Calling LLM to generate Flux prompt (prompt length: {} chars)", fullPrompt.length());
 
         String raw = ollamaClient.generateText(fullPrompt).block();
         if (raw == null) {
             throw new IllegalStateException("LLM returned null response for Flux prompt");
         }
 
-        log.debug("LLM raw response (first 1000 chars): {}", 
-                raw.length() > 1000 ? raw.substring(0, 1000) + "..." : raw);
+        log.debug("[PROMPT BUILD] LLM raw response length: {} chars (first 1000 chars): {}", 
+                raw.length(), raw.length() > 1000 ? raw.substring(0, 1000) + "..." : raw);
 
         raw = cleanModelOutput(raw);
         String fluxPrompt = raw.trim();
         
-        log.info("Flux prompt generated successfully (length: {} chars)", fluxPrompt.length());
-        log.info("Final Flux prompt:\n{}", fluxPrompt);
+        log.info("[PROMPT BUILD] ✓ Flux prompt generated successfully");
+        log.info("[PROMPT BUILD] Flux prompt length: {} chars", fluxPrompt.length());
+        log.info("[PROMPT BUILD] Flux prompt (first 500 chars): {}", 
+                fluxPrompt.length() > 500 ? fluxPrompt.substring(0, 500) + "..." : fluxPrompt);
+        log.info("[PROMPT BUILD] Flux prompt (last 200 chars): {}", 
+                fluxPrompt.length() > 200 ? "..." + fluxPrompt.substring(fluxPrompt.length() - 200) : fluxPrompt);
+        log.debug("[PROMPT BUILD] Full Flux prompt:\n{}", fluxPrompt);
+        
+        log.info("[PROMPT BUILD] === Step 2 completed: enriched JSON → Flux prompt ===");
         
         return fluxPrompt;
     }
