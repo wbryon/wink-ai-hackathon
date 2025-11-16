@@ -228,13 +228,13 @@ const FrameViewer = ({ scenes: initialScenes, scriptId }) => {
         }
       } else {
         // Fallback: обновляем локальное состояние, если scriptId нет
-        const updatedScenes = [...scenes];
-        updatedScenes[currentSceneIndex] = {
-          ...currentScene,
-          currentFrame: response,
-          generatedFrames: [...(currentScene.generatedFrames || []), response],
-        };
-        setScenes(updatedScenes);
+      const updatedScenes = [...scenes];
+      updatedScenes[currentSceneIndex] = {
+        ...currentScene,
+        currentFrame: response,
+        generatedFrames: [...(currentScene.generatedFrames || []), response],
+      };
+      setScenes(updatedScenes);
       }
       
       // Обновляем историю
@@ -269,13 +269,13 @@ const FrameViewer = ({ scenes: initialScenes, scriptId }) => {
         }
       } else {
         // Fallback: обновляем локальное состояние
-        const updatedScenes = [...scenes];
-        updatedScenes[currentSceneIndex] = {
-          ...currentScene,
-          currentFrame: response,
-          prompt: promptText,
-        };
-        setScenes(updatedScenes);
+      const updatedScenes = [...scenes];
+      updatedScenes[currentSceneIndex] = {
+        ...currentScene,
+        currentFrame: response,
+        prompt: promptText,
+      };
+      setScenes(updatedScenes);
       }
       setEditingPrompt(false);
       
@@ -381,8 +381,6 @@ const FrameViewer = ({ scenes: initialScenes, scriptId }) => {
     galleryLodFilter === 'all' ? true : card.lod === galleryLodFilter
   );
 
-  Установить уровень логирования на DEBUG для полных JSON (если нужно).
-Установить уровень логирования на DEBUG для полных JSON (если нужно).
   // Начать редактирование промпта.
   // В приоритете используем фактический промпт кадра,
   // который уже был отправлен в ComfyUI при последней генерации.
