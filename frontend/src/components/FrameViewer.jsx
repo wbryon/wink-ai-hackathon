@@ -68,6 +68,11 @@ const FrameViewer = ({ scenes: initialScenes, scriptId }) => {
 
   const currentScene = scenes[currentSceneIndex];
 
+  // Текущий кадр для отображения:
+  // в приоритете берем currentScene.currentFrame, но если он по каким-то причинам
+  // ещё не заполнен, используем последний кадр из истории (frameHistory[0]).
+  const effectiveCurrentFrame = currentScene?.currentFrame || (frameHistory?.[0] ?? null);
+
   // Загрузить сцены из API, если они не переданы или пустые
   useEffect(() => {
     const loadScenes = async () => {
@@ -277,13 +282,13 @@ const FrameViewer = ({ scenes: initialScenes, scriptId }) => {
 
   // Регенерация с новым промптом
   const handleRegenerate = async () => {
-    if (!currentScene?.currentFrame?.id || !promptText.trim()) return;
+    if (!effectiveCurrentFrame?.id || !promptText.trim()) return;
 
     setIsGenerating(true);
     try {
-      const currentPath = currentScene.currentFrame.path || generationPath;
+      const currentPath = effectiveCurrentFrame.path || generationPath;
       const response = await regenerateFrame(
-        currentScene.currentFrame.id,
+        effectiveCurrentFrame.id,
         promptText,
         directFinal ? 'direct_final' : detailLevel,
         currentPath
@@ -653,10 +658,10 @@ const FrameViewer = ({ scenes: initialScenes, scriptId }) => {
 
               {/* Область просмотра кадра */}
               <div className="bg-wink-dark rounded-lg p-6 mb-6">
-                {currentScene?.currentFrame?.imageUrl ? (
+                {effectiveCurrentFrame?.imageUrl ? (
                   <div className="relative">
                     <img
-                      src={currentScene.currentFrame.imageUrl}
+                      src={effectiveCurrentFrame.imageUrl}
                       alt={currentScene.title}
                       className="w-full h-auto rounded-lg"
                     />
@@ -1232,66 +1237,66 @@ const FrameViewer = ({ scenes: initialScenes, scriptId }) => {
                 <h3 className="font-bold mb-3">Технические параметры</h3>
                 <div className="space-y-2 text-xs text-gray-300 bg-wink-black rounded-lg p-3">
                   <div className="flex flex-wrap gap-2">
-                    {currentScene.currentFrame.detailLevel && (
+                    {effectiveCurrentFrame?.detailLevel && (
                       <span className="px-2 py-1 bg-wink-dark rounded border border-wink-gray">
-                        LOD: {currentScene.currentFrame.detailLevel === 'medium' ? 'mid' : currentScene.currentFrame.detailLevel}
+                        LOD: {effectiveCurrentFrame.detailLevel === 'medium' ? 'mid' : effectiveCurrentFrame.detailLevel}
                       </span>
                     )}
-                    {(currentScene.currentFrame.path || currentScene.currentFrame.generationPath) && (
+                    {(effectiveCurrentFrame?.path || effectiveCurrentFrame?.generationPath) && (
                       <span className={`px-2 py-1 bg-wink-dark rounded border ${
-                        (currentScene.currentFrame.path || currentScene.currentFrame.generationPath) === 'progressive'
+                        (effectiveCurrentFrame.path || effectiveCurrentFrame.generationPath) === 'progressive'
                           ? 'border-blue-500/50 text-blue-400'
                           : 'border-purple-500/50 text-purple-400'
                       }`}>
-                        Путь: {(currentScene.currentFrame.path || currentScene.currentFrame.generationPath) === 'progressive' ? 'Прогрессивный' : 'Прямой'}
+                        Путь: {(effectiveCurrentFrame.path || effectiveCurrentFrame.generationPath) === 'progressive' ? 'Прогрессивный' : 'Прямой'}
                       </span>
                     )}
-                    {typeof currentScene.currentFrame.meta.seed === 'number' && (
+                    {effectiveCurrentFrame?.meta && typeof effectiveCurrentFrame.meta.seed === 'number' && (
                       <span className="px-2 py-1 bg-wink-dark rounded border border-wink-gray">
-                        Seed: {currentScene.currentFrame.meta.seed}
+                        Seed: {effectiveCurrentFrame.meta.seed}
                       </span>
                     )}
-                    {typeof currentScene.currentFrame.meta.steps === 'number' && (
+                    {effectiveCurrentFrame?.meta && typeof effectiveCurrentFrame.meta.steps === 'number' && (
                       <span className="px-2 py-1 bg-wink-dark rounded border border-wink-gray">
-                        Steps: {currentScene.currentFrame.meta.steps}
+                        Steps: {effectiveCurrentFrame.meta.steps}
                       </span>
                     )}
-                    {typeof currentScene.currentFrame.meta.cfg === 'number' && (
+                    {effectiveCurrentFrame?.meta && typeof effectiveCurrentFrame.meta.cfg === 'number' && (
                       <span className="px-2 py-1 bg-wink-dark rounded border border-wink-gray">
-                        CFG: {currentScene.currentFrame.meta.cfg}
+                        CFG: {effectiveCurrentFrame.meta.cfg}
                       </span>
                     )}
-                    {currentScene.currentFrame.meta.sampler && (
+                    {effectiveCurrentFrame?.meta && effectiveCurrentFrame.meta.sampler && (
                       <span className="px-2 py-1 bg-wink-dark rounded border border-wink-gray">
-                        Sampler: {currentScene.currentFrame.meta.sampler}
+                        Sampler: {effectiveCurrentFrame.meta.sampler}
                       </span>
                     )}
-                    {currentScene.currentFrame.meta.scheduler && (
+                    {effectiveCurrentFrame?.meta && effectiveCurrentFrame.meta.scheduler && (
                       <span className="px-2 py-1 bg-wink-dark rounded border border-wink-gray">
-                        Scheduler: {currentScene.currentFrame.meta.scheduler}
+                        Scheduler: {effectiveCurrentFrame.meta.scheduler}
                       </span>
                     )}
-                    {currentScene.currentFrame.meta.resolution && (
+                    {effectiveCurrentFrame?.meta && effectiveCurrentFrame.meta.resolution && (
                       <span className="px-2 py-1 bg-wink-dark rounded border border-wink-gray">
-                        Res: {currentScene.currentFrame.meta.resolution}
+                        Res: {effectiveCurrentFrame.meta.resolution}
                       </span>
                     )}
-                    {currentScene.currentFrame.meta.vae && (
+                    {effectiveCurrentFrame?.meta && effectiveCurrentFrame.meta.vae && (
                       <span className="px-2 py-1 bg-wink-dark rounded border border-wink-gray">
-                        VAE: {currentScene.currentFrame.meta.vae}
+                        VAE: {effectiveCurrentFrame.meta.vae}
                       </span>
                     )}
                   </div>
-                  {currentScene.currentFrame.meta.style?.preset && (
+                  {effectiveCurrentFrame?.meta?.style?.preset && (
                     <div className="mt-2">
                       <span className="font-bold text-gray-400">Стиль (preset): </span>
-                      <span>{currentScene.currentFrame.meta.style.preset}</span>
+                      <span>{effectiveCurrentFrame.meta.style.preset}</span>
                     </div>
                   )}
-                  {currentScene.currentFrame.meta.style?.negatives && (
+                  {effectiveCurrentFrame?.meta?.style?.negatives && (
                     <div className="mt-1">
                       <span className="font-bold text-gray-400">Негативы: </span>
-                      <span>{currentScene.currentFrame.meta.style.negatives}</span>
+                      <span>{effectiveCurrentFrame.meta.style.negatives}</span>
                     </div>
                   )}
                 </div>
@@ -1299,7 +1304,7 @@ const FrameViewer = ({ scenes: initialScenes, scriptId }) => {
             )}
 
             {/* Действия */}
-            {currentScene?.currentFrame && (
+            {effectiveCurrentFrame && (
               <div className="space-y-2">
                 <button
                   onClick={handleRegenerate}
