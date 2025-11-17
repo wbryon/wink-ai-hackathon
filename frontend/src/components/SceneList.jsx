@@ -578,10 +578,7 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
                               <Sparkles className="w-4 h-4" />
                               {enriching[index] ? 'Запуск пайплайна...' : 'Запустить пайплайн обогащения'}
                             </button>
-                            <p className="text-xs text-gray-500 mt-1 text-center">
-                              scene text → ollama → json → ollama → enriched json → ollama → prompt
-                            </p>
-                            
+
                             {/* Отображение результатов парсинга и обогащения */}
                             {(sceneBaseJson[scene.id] || scenePrompts[scene.id] || sceneEnrichedJson[scene.id]) && (
                               <div className="mt-3 space-y-3">

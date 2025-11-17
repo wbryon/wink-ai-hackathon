@@ -239,25 +239,30 @@ const FrameViewer = ({ scenes: initialScenes, scriptId }) => {
         setGenerationPath('progressive');
       }
       
-      // Перезагружаем список сцен из API, чтобы получить актуальные данные с кадрами
+      // 1) Немедленно обновляем локальное состояние текущей сцены,
+      // чтобы кадр появился в превью без ожидания повторного запроса.
+      setScenes(prevScenes => {
+        const updated = prevScenes.map((scene, idx) => {
+          if (!scene || scene.id !== currentScene.id || idx !== currentSceneIndex) return scene;
+          return {
+            ...scene,
+            currentFrame: response,
+            generatedFrames: [response, ...(scene.generatedFrames || [])],
+          };
+        });
+        return updated;
+      });
+
+      // 2) Перезагружаем список сцен из API, чтобы получить актуальные данные с сервера
       if (scriptId) {
-        const updatedScenes = await getScenes(scriptId);
-        if (updatedScenes && updatedScenes.length > 0) {
-          setScenes(updatedScenes);
-          // Обновляем текущую сцену, если индекс не изменился
-          if (updatedScenes[currentSceneIndex] && updatedScenes[currentSceneIndex].id === currentScene.id) {
-            // currentScene уже обновлен через setScenes
+        try {
+          const updatedScenes = await getScenes(scriptId);
+          if (updatedScenes && updatedScenes.length > 0) {
+            setScenes(updatedScenes);
           }
+        } catch (e) {
+          console.error('Error refreshing scenes after generate:', e);
         }
-      } else {
-        // Fallback: обновляем локальное состояние, если scriptId нет
-      const updatedScenes = [...scenes];
-      updatedScenes[currentSceneIndex] = {
-        ...currentScene,
-        currentFrame: response,
-        generatedFrames: [...(currentScene.generatedFrames || []), response],
-      };
-      setScenes(updatedScenes);
       }
       
       // Обновляем историю
@@ -284,21 +289,30 @@ const FrameViewer = ({ scenes: initialScenes, scriptId }) => {
         currentPath
       );
       
-      // Перезагружаем список сцен из API, чтобы получить актуальные данные с кадрами
+      // 1) Немедленно обновляем локальное состояние текущей сцены и промпта,
+      // чтобы новый кадр сразу появился в превью.
+      setScenes(prevScenes => {
+        const updated = prevScenes.map((scene, idx) => {
+          if (!scene || scene.id !== currentScene.id || idx !== currentSceneIndex) return scene;
+          return {
+            ...scene,
+            currentFrame: response,
+            prompt: promptText,
+          };
+        });
+        return updated;
+      });
+
+      // 2) Перезагружаем список сцен из API, чтобы подтянуть свежие данные
       if (scriptId) {
-        const updatedScenes = await getScenes(scriptId);
-        if (updatedScenes && updatedScenes.length > 0) {
-          setScenes(updatedScenes);
+        try {
+          const updatedScenes = await getScenes(scriptId);
+          if (updatedScenes && updatedScenes.length > 0) {
+            setScenes(updatedScenes);
+          }
+        } catch (e) {
+          console.error('Error refreshing scenes after regenerate:', e);
         }
-      } else {
-        // Fallback: обновляем локальное состояние
-      const updatedScenes = [...scenes];
-      updatedScenes[currentSceneIndex] = {
-        ...currentScene,
-        currentFrame: response,
-        prompt: promptText,
-      };
-      setScenes(updatedScenes);
       }
       setEditingPrompt(false);
       
