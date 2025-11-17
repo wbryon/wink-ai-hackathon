@@ -32,6 +32,25 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
   const [showBaseJson, setShowBaseJson] = useState({}); // per-scene base JSON visibility
   const [scenesLoading, setScenesLoading] = useState(false);
 
+  // Синхронизация локального состояния сцен с пропсом initialScenes
+  // (важно после загрузки файла и завершения парсинга на бэкенде).
+  useEffect(() => {
+    if (initialScenes && initialScenes.length > 0) {
+      setScenes(initialScenes);
+
+      // Обновляем base JSON для сцен, у которых он уже есть
+      const baseJsonFromInitial = {};
+      for (const scene of initialScenes) {
+        if (scene.id && scene.originalJson) {
+          baseJsonFromInitial[scene.id] = scene.originalJson;
+        }
+      }
+      if (Object.keys(baseJsonFromInitial).length > 0) {
+        setSceneBaseJson(prev => ({ ...prev, ...baseJsonFromInitial }));
+      }
+    }
+  }, [initialScenes]);
+
   // Загрузить сцены из API, если они не переданы или пустые
   useEffect(() => {
     const loadScenes = async () => {

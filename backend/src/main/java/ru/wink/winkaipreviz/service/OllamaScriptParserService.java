@@ -166,159 +166,239 @@ CHUNK TEXT (RUSSIAN SCREENPLAY):
                 + "\n\nIMPORTANT: Since this is a single scene (not a chunk), return an array with exactly ONE scene object.";
 
         log.debug("Calling LLM for scene text parsing (text length: {} chars)", sceneText.length());
-        log.debug("Scene text preview (first 300 chars): {}", 
+        log.debug("Scene text preview (first 300 chars): {}",
                 sceneText.length() > 300 ? sceneText.substring(0, 300) + "..." : sceneText);
 
-        String raw = ollamaClient.generateJson(prompt).block();
+        // Как и в энричере, делаем несколько попыток с увеличением num_predict,
+        // чтобы справиться с обрезанным JSON (JsonEOFException, незакрытые массивы и т.п.).
+        int[] numPredictValues = {1500, 2500, 3500};
+        Exception lastException = null;
 
-        if (raw == null) {
-            log.error("LLM returned null response for scene text");
-            throw new IllegalStateException("Failed to parse scene text to JSON: LLM returned null");
-        }
-
-        log.debug("LLM raw response (first 2000 chars): {}", 
-                raw.length() > 2000 ? raw.substring(0, 2000) + "..." : raw);
-
-        raw = cleanModelOutput(raw);
-        if (raw.isBlank()) {
-            log.error("LLM returned empty response after cleaning");
-            throw new IllegalStateException("LLM returned empty response for scene text after cleaning");
-        }
-
-        // Извлекаем JSON - может быть массив или объект
-        String candidate = raw.trim();
-        int objectStart = candidate.indexOf('{');
-        int objectEnd = candidate.lastIndexOf('}');
-        int arrayStart = candidate.indexOf('[');
-        int arrayEnd = candidate.lastIndexOf(']');
-
-        JsonNode root;
-        
-        // ВАЖНО: Сначала проверяем, является ли весь ответ объектом на верхнем уровне
-        // (начинается с { и заканчивается }), чтобы не извлечь массив изнутри объекта
-        boolean isTopLevelObject = objectStart == 0 && objectEnd == candidate.length() - 1;
-        boolean isTopLevelArray = arrayStart == 0 && arrayEnd == candidate.length() - 1;
-        
-        if (isTopLevelObject) {
-            // Весь ответ - это объект, оборачиваем в массив
-            log.debug("LLM returned JSON object at top level, wrapping in array. Object (length: {} chars)", candidate.length());
-            log.debug("Extracted JSON object candidate (first 1000 chars): {}", 
-                    candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate);
-            
+        for (int attempt = 0; attempt < numPredictValues.length; attempt++) {
+            int numPredict = numPredictValues[attempt];
             try {
-                JsonNode objNode = mapper.readTree(candidate);
-                // Оборачиваем объект в массив
-                root = mapper.createArrayNode().add(objNode);
-                log.info("Successfully wrapped top-level JSON object in array");
-            } catch (Exception e) {
-                log.error("Failed to parse top-level JSON object. Candidate (first 1000 chars): {}", 
-                        candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate, e);
-                throw new IllegalStateException("Failed to parse JSON object: " + e.getMessage() + 
-                        ". Response preview: " + (candidate.length() > 500 ? candidate.substring(0, 500) + "..." : candidate));
-            }
-        } else if (isTopLevelArray) {
-            // Весь ответ - это массив на верхнем уровне
-            log.debug("Extracted JSON array candidate (length: {} chars)", candidate.length());
-            
-            try {
-                root = mapper.readTree(candidate);
-                if (!root.isArray()) {
-                    log.error("Top-level structure is not an array after parsing. Type: {}", root.getNodeType());
-                    throw new IllegalStateException("Failed to parse JSON array, got: " + root.getNodeType());
+                log.debug("Scene parsing attempt {} with num_predict={}", attempt + 1, numPredict);
+
+                String raw = ollamaClient.generateJson(prompt, numPredict).block();
+
+                if (raw == null) {
+                    log.error("LLM returned null response for scene text (attempt {})", attempt + 1);
+                    throw new IllegalStateException("Failed to parse scene text to JSON: LLM returned null");
                 }
-            } catch (Exception e) {
-                log.error("Failed to parse JSON array. Candidate (first 1000 chars): {}", 
-                        candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate, e);
-                throw new IllegalStateException("Failed to parse JSON array: " + e.getMessage() + 
-                        ". Response preview: " + (candidate.length() > 500 ? candidate.substring(0, 500) + "..." : candidate));
-            }
-        } else if (objectStart != -1 && objectEnd != -1 && objectEnd > objectStart) {
-            // Объект найден, но не на верхнем уровне - извлекаем его
-            candidate = candidate.substring(objectStart, objectEnd + 1).trim();
-            log.debug("Extracted JSON object from response (length: {} chars)", candidate.length());
-            log.debug("Extracted JSON object candidate (first 1000 chars): {}", 
-                    candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate);
-            
-            try {
-                JsonNode objNode = mapper.readTree(candidate);
-                // Оборачиваем объект в массив
-                root = mapper.createArrayNode().add(objNode);
-                log.info("Successfully wrapped extracted JSON object in array");
-            } catch (Exception e) {
-                log.error("Failed to parse extracted JSON object. Candidate (first 1000 chars): {}", 
-                        candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate, e);
-                throw new IllegalStateException("Failed to parse JSON object: " + e.getMessage() + 
-                        ". Response preview: " + (candidate.length() > 500 ? candidate.substring(0, 500) + "..." : candidate));
-            }
-        } else if (arrayStart != -1 && arrayEnd != -1 && arrayEnd > arrayStart) {
-            // Массив найден, но не на верхнем уровне - извлекаем его
-            candidate = candidate.substring(arrayStart, arrayEnd + 1).trim();
-            log.debug("Extracted JSON array from response (length: {} chars)", candidate.length());
-            
-            try {
-                root = mapper.readTree(candidate);
-                if (!root.isArray()) {
-                    log.error("Extracted structure is not an array after parsing. Type: {}", root.getNodeType());
-                    throw new IllegalStateException("Failed to parse JSON array, got: " + root.getNodeType());
+
+                log.debug("LLM raw response (first 2000 chars): {}",
+                        raw.length() > 2000 ? raw.substring(0, 2000) + "..." : raw);
+
+                raw = cleanModelOutput(raw);
+                if (raw.isBlank()) {
+                    log.error("LLM returned empty response after cleaning (attempt {})", attempt + 1);
+                    throw new IllegalStateException("LLM returned empty response for scene text after cleaning");
                 }
-            } catch (Exception e) {
-                log.error("Failed to parse extracted JSON array. Candidate (first 1000 chars): {}", 
-                        candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate, e);
-                throw new IllegalStateException("Failed to parse JSON array: " + e.getMessage() + 
-                        ". Response preview: " + (candidate.length() > 500 ? candidate.substring(0, 500) + "..." : candidate));
-            }
-        } else {
-            log.error("LLM did not return valid JSON (neither array nor object). Raw response (first 1000 chars): {}", 
-                    candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate);
-            throw new IllegalStateException("LLM did not return valid JSON. Response: " + 
-                    (candidate.length() > 500 ? candidate.substring(0, 500) + "..." : candidate));
-        }
 
-        if (!root.isArray()) {
-            log.error("Root is not an array after processing. Type: {}, Content (first 500 chars): {}", 
-                    root.getNodeType(), root.toString().length() > 500 ? root.toString().substring(0, 500) + "..." : root.toString());
-            throw new IllegalStateException("Failed to create JSON array, got: " + root.getNodeType());
-        }
+                // Извлекаем JSON - может быть массив или объект
+                String candidate = raw.trim();
+                int objectStart = candidate.indexOf('{');
+                int objectEnd = candidate.lastIndexOf('}');
+                int arrayStart = candidate.indexOf('[');
+                int arrayEnd = candidate.lastIndexOf(']');
 
-        if (root.size() == 0) {
-            log.error("Resulting array is empty. Original candidate: {}", candidate);
-            throw new IllegalStateException("LLM did not return an array with at least one scene (array is empty)");
-        }
+                JsonNode root;
 
-        // Возвращаем первый элемент массива как JSON строку
-        String baseJson = mapper.writeValueAsString(root.get(0));
-        
-        log.info("Parsed scene text to base JSON successfully");
-        log.debug("Base JSON:\n{}", baseJson);
-        
-        // Логируем ключевые поля для быстрой диагностики
-        try {
-            JsonNode sceneNode = root.get(0);
-            if (sceneNode.has("slugline_raw")) {
-                log.info("Parsed slugline_raw: '{}'", sceneNode.get("slugline_raw").asText());
-            }
-            if (sceneNode.has("location")) {
-                JsonNode locationNode = sceneNode.get("location");
-                if (locationNode.isObject() && locationNode.has("raw")) {
-                    log.info("Parsed location.raw: '{}'", locationNode.get("raw").asText());
-                }
-            }
-            if (sceneNode.has("characters")) {
-                JsonNode charsNode = sceneNode.get("characters");
-                if (charsNode.isArray()) {
-                    log.info("Parsed characters count: {}", charsNode.size());
-                    for (int i = 0; i < Math.min(charsNode.size(), 3); i++) {
-                        JsonNode charNode = charsNode.get(i);
-                        String charName = charNode.has("name") ? charNode.get("name").asText() : "N/A";
-                        log.debug("  Character {}: name='{}'", i + 1, charName);
+                // ВАЖНО: Сначала проверяем, является ли весь ответ объектом на верхнем уровне
+                // (начинается с { и заканчивается }), чтобы не извлечь массив изнутри объекта
+                boolean isTopLevelObject = objectStart == 0 && objectEnd == candidate.length() - 1;
+                boolean isTopLevelArray = arrayStart == 0 && arrayEnd == candidate.length() - 1;
+
+                if (isTopLevelObject) {
+                    // Весь ответ - это объект, оборачиваем в массив
+                    log.debug("LLM returned JSON object at top level, wrapping in array. Object (length: {} chars)", candidate.length());
+                    log.debug("Extracted JSON object candidate (first 1000 chars): {}",
+                            candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate);
+
+                    // Проверяем баланс скобок/квадратных скобок на обрезанность
+                    long openBraces = candidate.chars().filter(ch -> ch == '{').count();
+                    long closeBraces = candidate.chars().filter(ch -> ch == '}').count();
+                    long openBrackets = candidate.chars().filter(ch -> ch == '[').count();
+                    long closeBrackets = candidate.chars().filter(ch -> ch == ']').count();
+                    if ((openBraces != closeBraces || openBrackets != closeBrackets) && attempt < numPredictValues.length - 1) {
+                        log.warn("Top-level JSON object appears incomplete (braces/brackets unbalanced: {} '{{' vs {}, {} '[' vs {}). " +
+                                "Retrying with higher num_predict (attempt {}). Candidate length: {} chars",
+                                openBraces, closeBraces, openBrackets, closeBrackets, attempt + 1, candidate.length());
+                        lastException = new IllegalStateException("JSON braces/brackets unbalanced for top-level object");
+                        continue;
                     }
+
+                    try {
+                        JsonNode objNode = mapper.readTree(candidate);
+                        // Оборачиваем объект в массив
+                        root = mapper.createArrayNode().add(objNode);
+                        log.info("Successfully wrapped top-level JSON object in array");
+                    } catch (Exception e) {
+                        log.error("Failed to parse top-level JSON object. Candidate (first 1000 chars): {}",
+                                candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate, e);
+                        throw new IllegalStateException("Failed to parse JSON object: " + e.getMessage() +
+                                ". Response preview: " + (candidate.length() > 500 ? candidate.substring(0, 500) + "..." : candidate));
+                    }
+                } else if (isTopLevelArray) {
+                    // Весь ответ - это массив на верхнем уровне
+                    log.debug("Extracted JSON array candidate (length: {} chars)", candidate.length());
+
+                    long openBrackets = candidate.chars().filter(ch -> ch == '[').count();
+                    long closeBrackets = candidate.chars().filter(ch -> ch == ']').count();
+                    if (openBrackets != closeBrackets && attempt < numPredictValues.length - 1) {
+                        log.warn("Top-level JSON array appears incomplete (brackets unbalanced: {} '[' vs {}). " +
+                                "Retrying with higher num_predict (attempt {}). Candidate length: {} chars",
+                                openBrackets, closeBrackets, attempt + 1, candidate.length());
+                        lastException = new IllegalStateException("JSON brackets unbalanced for top-level array");
+                        continue;
+                    }
+
+                    try {
+                        root = mapper.readTree(candidate);
+                        if (!root.isArray()) {
+                            log.error("Top-level structure is not an array after parsing. Type: {}", root.getNodeType());
+                            throw new IllegalStateException("Failed to parse JSON array, got: " + root.getNodeType());
+                        }
+                    } catch (Exception e) {
+                        log.error("Failed to parse JSON array. Candidate (first 1000 chars): {}",
+                                candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate, e);
+                        throw new IllegalStateException("Failed to parse JSON array: " + e.getMessage() +
+                                ". Response preview: " + (candidate.length() > 500 ? candidate.substring(0, 500) + "..." : candidate));
+                    }
+                } else if (objectStart != -1 && objectEnd != -1 && objectEnd > objectStart) {
+                    // Объект найден, но не на верхнем уровне - извлекаем его
+                    candidate = candidate.substring(objectStart, objectEnd + 1).trim();
+                    log.debug("Extracted JSON object from response (length: {} chars)", candidate.length());
+                    log.debug("Extracted JSON object candidate (first 1000 chars): {}",
+                            candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate);
+
+                    long openBraces = candidate.chars().filter(ch -> ch == '{').count();
+                    long closeBraces = candidate.chars().filter(ch -> ch == '}').count();
+                    long openBrackets = candidate.chars().filter(ch -> ch == '[').count();
+                    long closeBrackets = candidate.chars().filter(ch -> ch == ']').count();
+                    if ((openBraces != closeBraces || openBrackets != closeBrackets) && attempt < numPredictValues.length - 1) {
+                        log.warn("Extracted JSON object appears incomplete (braces/brackets unbalanced: {} '{{' vs {}, {} '[' vs {}). " +
+                                        "Retrying with higher num_predict (attempt {}). Candidate length: {} chars",
+                                openBraces, closeBraces, openBrackets, closeBrackets, attempt + 1, candidate.length());
+                        lastException = new IllegalStateException("JSON braces/brackets unbalanced for extracted object");
+                        continue;
+                    }
+
+                    try {
+                        JsonNode objNode = mapper.readTree(candidate);
+                        // Оборачиваем объект в массив
+                        root = mapper.createArrayNode().add(objNode);
+                        log.info("Successfully wrapped extracted JSON object in array");
+                    } catch (Exception e) {
+                        log.error("Failed to parse extracted JSON object. Candidate (first 1000 chars): {}",
+                                candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate, e);
+                        throw new IllegalStateException("Failed to parse JSON object: " + e.getMessage() +
+                                ". Response preview: " + (candidate.length() > 500 ? candidate.substring(0, 500) + "..." : candidate));
+                    }
+                } else if (arrayStart != -1 && arrayEnd != -1 && arrayEnd > arrayStart) {
+                    // Массив найден, но не на верхнем уровне - извлекаем его
+                    candidate = candidate.substring(arrayStart, arrayEnd + 1).trim();
+                    log.debug("Extracted JSON array from response (length: {} chars)", candidate.length());
+
+                    long openBrackets = candidate.chars().filter(ch -> ch == '[').count();
+                    long closeBrackets = candidate.chars().filter(ch -> ch == ']').count();
+                    if (openBrackets != closeBrackets && attempt < numPredictValues.length - 1) {
+                        log.warn("Extracted JSON array appears incomplete (brackets unbalanced: {} '[' vs {}). " +
+                                        "Retrying with higher num_predict (attempt {}). Candidate length: {} chars",
+                                openBrackets, closeBrackets, attempt + 1, candidate.length());
+                        lastException = new IllegalStateException("JSON brackets unbalanced for extracted array");
+                        continue;
+                    }
+
+                    try {
+                        root = mapper.readTree(candidate);
+                        if (!root.isArray()) {
+                            log.error("Extracted structure is not an array after parsing. Type: {}", root.getNodeType());
+                            throw new IllegalStateException("Failed to parse JSON array, got: " + root.getNodeType());
+                        }
+                    } catch (Exception e) {
+                        log.error("Failed to parse extracted JSON array. Candidate (first 1000 chars): {}",
+                                candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate, e);
+                        throw new IllegalStateException("Failed to parse JSON array: " + e.getMessage() +
+                                ". Response preview: " + (candidate.length() > 500 ? candidate.substring(0, 500) + "..." : candidate));
+                    }
+                } else {
+                    log.error("LLM did not return valid JSON (neither array nor object). Raw response (first 1000 chars): {}",
+                            candidate.length() > 1000 ? candidate.substring(0, 1000) + "..." : candidate);
+                    throw new IllegalStateException("LLM did not return valid JSON. Response: " +
+                            (candidate.length() > 500 ? candidate.substring(0, 500) + "..." : candidate));
+                }
+
+                if (!root.isArray()) {
+                    log.error("Root is not an array after processing. Type: {}, Content (first 500 chars): {}",
+                            root.getNodeType(), root.toString().length() > 500 ? root.toString().substring(0, 500) + "..." : root.toString());
+                    throw new IllegalStateException("Failed to create JSON array, got: " + root.getNodeType());
+                }
+
+                if (root.size() == 0) {
+                    log.error("Resulting array is empty. Original candidate: {}", candidate);
+                    throw new IllegalStateException("LLM did not return an array with at least one scene (array is empty)");
+                }
+
+                // Возвращаем первый элемент массива как JSON строку
+                String baseJson = mapper.writeValueAsString(root.get(0));
+
+                log.info("Parsed scene text to base JSON successfully");
+                log.debug("Base JSON:\n{}", baseJson);
+
+                // Логируем ключевые поля для быстрой диагностики
+                try {
+                    JsonNode sceneNode = root.get(0);
+                    if (sceneNode.has("slugline_raw")) {
+                        log.info("Parsed slugline_raw: '{}'", sceneNode.get("slugline_raw").asText());
+                    }
+                    if (sceneNode.has("location")) {
+                        JsonNode locationNode = sceneNode.get("location");
+                        if (locationNode.isObject() && locationNode.has("raw")) {
+                            log.info("Parsed location.raw: '{}'", locationNode.get("raw").asText());
+                        }
+                    }
+                    if (sceneNode.has("characters")) {
+                        JsonNode charsNode = sceneNode.get("characters");
+                        if (charsNode.isArray()) {
+                            log.info("Parsed characters count: {}", charsNode.size());
+                            for (int i = 0; i < Math.min(charsNode.size(), 3); i++) {
+                                JsonNode charNode = charsNode.get(i);
+                                String charName = charNode.has("name") ? charNode.get("name").asText() : "N/A";
+                                log.debug("  Character {}: name='{}'", i + 1, charName);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to parse base JSON for diagnostic logging: {}", e.getMessage());
+                }
+
+                // Если мы сюда дошли — всё успешно, возвращаем результат и выходим из цикла
+                return baseJson;
+
+            } catch (Exception e) {
+                // Любая ошибка парсинга / маппинга — логируем и при возможности пробуем ещё раз
+                log.warn("Scene text JSON parsing failed on attempt {} with num_predict={}: {}",
+                        attempt + 1, numPredict, e.getMessage());
+                lastException = e;
+                if (attempt < numPredictValues.length - 1) {
+                    // Переходим к следующей попытке с более длинным ответом
+                    continue;
+                } else {
+                    break;
                 }
             }
-        } catch (Exception e) {
-            log.warn("Failed to parse base JSON for diagnostic logging: {}", e.getMessage());
         }
-        
-        return baseJson;
+
+        // Если дошли сюда — все попытки исчерпаны
+        if (lastException != null) {
+            throw new IllegalStateException("Failed to parse scene text to JSON after " +
+                    numPredictValues.length + " attempts with increasing num_predict. Last error: " +
+                    lastException.getMessage(), lastException);
+        } else {
+            throw new IllegalStateException("Failed to parse scene text to JSON after " +
+                    numPredictValues.length + " attempts");
+        }
     }
 
     /**
