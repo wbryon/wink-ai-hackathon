@@ -11,7 +11,7 @@ import {
   Save,
   X
 } from 'lucide-react';
-import { updateScene, deleteScene, addScene, generateFrame, refineScene, enrichScene, getScenes, getSceneVisual } from '../api/apiClient';
+import { updateScene, deleteScene, addScene, generateFrame, refineScene, enrichScene, getScenes, getSceneVisual, getSceneDetails } from '../api/apiClient';
 import { Sparkles } from 'lucide-react';
 
 const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
@@ -31,6 +31,7 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
   const [sceneBaseJson, setSceneBaseJson] = useState({}); // per-scene base JSON from scene parsing
   const [showBaseJson, setShowBaseJson] = useState({}); // per-scene base JSON visibility
   const [scenesLoading, setScenesLoading] = useState(false);
+  const [baseJsonLoading, setBaseJsonLoading] = useState({}); // статус загрузки base JSON по сценам
 
   // Синхронизация локального состояния сцен с пропсом initialScenes
   // (важно после загрузки файла и завершения парсинга на бэкенде).
@@ -50,6 +51,42 @@ const SceneList = ({ scenes: initialScenes, scriptId, onContinue }) => {
       }
     }
   }, [initialScenes]);
+
+  // Лениво подгружаем base JSON по мере появления сцен без originalJson.
+  useEffect(() => {
+    const loadMissingBaseJson = async () => {
+      if (!scriptId || !scenes || scenes.length === 0) return;
+
+      for (const scene of scenes) {
+        if (!scene?.id) continue;
+        const sceneId = scene.id;
+
+        // Если уже загружен или сейчас загружается — пропускаем
+        if (sceneBaseJson[sceneId] || baseJsonLoading[sceneId]) continue;
+
+        // Если в самой сцене уже есть originalJson, просто используем его
+        if (scene.originalJson) {
+          setSceneBaseJson(prev => ({ ...prev, [sceneId]: scene.originalJson }));
+          continue;
+        }
+
+        // Иначе пробуем подтянуть детальную сцену с бэкенда (по мере завершения парсинга)
+        try {
+          setBaseJsonLoading(prev => ({ ...prev, [sceneId]: true }));
+          const details = await getSceneDetails(sceneId);
+          if (details && details.originalJson) {
+            setSceneBaseJson(prev => ({ ...prev, [sceneId]: details.originalJson }));
+          }
+        } catch (e) {
+          console.debug('Base JSON not ready yet for scene', sceneId);
+        } finally {
+          setBaseJsonLoading(prev => ({ ...prev, [sceneId]: false }));
+        }
+      }
+    };
+
+    loadMissingBaseJson();
+  }, [scriptId, scenes, sceneBaseJson, baseJsonLoading]);
 
   // Загрузить сцены из API, если они не переданы или пустые
   useEffect(() => {

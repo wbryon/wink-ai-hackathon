@@ -51,6 +51,8 @@ app:
 ai:
   generate:
     base-url: ${AI_GENERATE_BASE_URL:http://ai:8000}
+frames:
+  storage-dir: ${FRAMES_DIR:/data/frames}
 script-processor:
   base-url: ${SCRIPT_PROCESSOR_BASE_URL:http://script-processor:8020}
   model: ${SCRIPT_PROCESSOR_MODEL:Qwen/Qwen3-32B}

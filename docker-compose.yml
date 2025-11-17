@@ -34,6 +34,7 @@ services:
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - OLLAMA_MODEL=qwen3:4b-instruct
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://$SERVER_IP:3000,http://localhost:5173,http://localhost:3000}  # Подставляем SERVER_IP
+      - FRAMES_DIR=/data/frames
 
     depends_on:
       - db
@@ -44,6 +45,7 @@ services:
     volumes:
       - ./data/uploads:/data/uploads
       - ./ai-modules/workflows:/app/workflows
+      - ./data/frames:/data/frames:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
       interval: 30s
@@ -60,7 +62,7 @@ services:
     environment:
       - COMFY_BASE_URL=${COMFY_BASE_URL:-http://host.docker.internal:8188}
       - STORAGE_DIR=/data/frames
-      - IMAGE_URL_BASE=http://localhost:8000/images
+      - IMAGE_URL_BASE=/api/images
       - WORKFLOWS_DIR=/app/workflows
     volumes:
       - ./data/frames:/data/frames

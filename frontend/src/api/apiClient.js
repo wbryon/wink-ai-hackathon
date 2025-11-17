@@ -217,6 +217,17 @@ export const getFrameHistory = async (sceneId) => {
 };
 
 /**
+ * Получить детальную информацию о сцене (включая originalJson)
+ * @param {string} sceneId - ID сцены
+ * @returns {Promise} - SceneDetailsDto
+ */
+export const getSceneDetails = async (sceneId) => {
+  return maybeFallback(
+    async () => (await apiClient.get(`/scripts/scenes/${sceneId}`)).data,
+  );
+};
+
+/**
  * Экспорт storyboard в PDF
  * @param {string} scriptId - ID сценария
  * @returns {Promise} - Промис с blob PDF файла
