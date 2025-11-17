@@ -1,5 +1,7 @@
 package ru.wink.winkaipreviz.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
@@ -25,14 +27,20 @@ import java.nio.file.Paths;
 @RequestMapping("/api/images")
 public class ImageController {
 
+    private static final Logger log = LoggerFactory.getLogger(ImageController.class);
+
     @Value("${frames.storage-dir:/data/frames}")
     private String framesDir;
 
     @GetMapping("/{filename}")
     public ResponseEntity<Resource> getImage(@PathVariable String filename) throws MalformedURLException {
         Path path = Paths.get(framesDir).resolve(filename).normalize();
+        boolean exists = Files.exists(path) && Files.isRegularFile(path);
 
-        if (!Files.exists(path) || !Files.isRegularFile(path)) {
+        log.info("Request image: filename='{}', resolvedPath='{}', exists={}", filename, path, exists);
+
+        if (!exists) {
+            log.warn("Image not found for filename='{}', resolvedPath='{}'", filename, path);
             return ResponseEntity.notFound().build();
         }
 
@@ -44,5 +52,6 @@ public class ImageController {
                 .body(resource);
     }
 }
+
 
 
