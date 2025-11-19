@@ -1,3 +1,5 @@
+![Alt text](Рисунок1.png)
+
 # Wink AI Challenge
 
 Хакатон на стыке IT и кино от онлайн-кинотеатра **Wink** и платформы **Codenrock**.  
